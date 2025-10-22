@@ -97,6 +97,8 @@ class TrafficManager:
             from app.models import Device, DeviceActivity
             
             with self.app.app_context():
+                from datetime import datetime
+                
                 for ip, data in stats.items():
                     # Znajdź urządzenie
                     device = Device.query.filter_by(ip_address=ip).first()
@@ -113,6 +115,11 @@ class TrafficManager:
                         packets_sent=data['packets_out']
                     )
                     db.session.add(activity)
+                    
+                    # Aktualizuj last_seen jeśli urządzenie ma ruch
+                    if data['bytes_in'] > 0 or data['bytes_out'] > 0:
+                        device.last_seen = datetime.utcnow()
+                        device.is_online = True
                 
                 db.session.commit()
                 logger.debug(f"✅ Zapisano {len(stats)} rekordów aktywności do SQLite")

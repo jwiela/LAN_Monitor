@@ -58,15 +58,12 @@ def device_detail(device_id):
         .limit(100)\
         .all()
     
-    # Pobierz bieżące statystyki ruchu
-    current_stats = traffic_manager.get_device_stats(device.ip_address)
+    # Pobierz bieżące prędkości (KB/s)
+    rates = traffic_manager.traffic_monitor.get_current_rates()
+    device_rate = rates.get(device.ip_address, (0, 0))
     
-    if current_stats:
-        download_rate = f"{current_stats['bytes_in'] / 1024:.2f} KB/s"
-        upload_rate = f"{current_stats['bytes_out'] / 1024:.2f} KB/s"
-    else:
-        download_rate = "0 KB/s"
-        upload_rate = "0 KB/s"
+    download_rate = f"{device_rate[0]:.2f} KB/s"
+    upload_rate = f"{device_rate[1]:.2f} KB/s"
     
     # Oblicz całkowity ruch z ostatnich 24h
     total_bytes_in = sum(a.bytes_received for a in activities)
@@ -129,3 +126,47 @@ def scan_network():
     
     flash('Skanowanie sieci zostało uruchomione w tle. Odśwież stronę za chwilę.', 'info')
     return redirect(url_for('main.dashboard'))
+
+
+@main_bp.route('/api/device/<int:device_id>/stats')
+@login_required
+def device_stats_api(device_id):
+    """API endpoint zwracający aktualne statystyki urządzenia (dla real-time update)"""
+    from flask import jsonify
+    from core.traffic_manager import traffic_manager
+    
+    device = Device.query.get_or_404(device_id)
+    
+    # Pobierz bieżące prędkości (KB/s) z traffic monitor
+    rates = traffic_manager.traffic_monitor.get_current_rates()
+    device_rate = rates.get(device.ip_address, (0, 0))
+    
+    # Pobierz najnowszą aktywność z bazy
+    latest_activity = DeviceActivity.query.filter_by(device_id=device_id)\
+        .order_by(desc(DeviceActivity.timestamp))\
+        .first()
+    
+    # Przygotuj dane do zwrócenia
+    download_kbps = device_rate[0]  # download
+    upload_kbps = device_rate[1]    # upload
+    
+    response = {
+        'download_rate': download_kbps,
+        'upload_rate': upload_kbps,
+        'download_rate_formatted': f"{download_kbps:.2f} KB/s",
+        'upload_rate_formatted': f"{upload_kbps:.2f} KB/s",
+        'last_seen': device.last_seen.strftime('%Y-%m-%d %H:%M:%S') if device.last_seen else 'Nigdy',
+        'status': 'online' if device.is_online else 'offline',
+        'latest_activity': None
+    }
+    
+    if latest_activity:
+        response['latest_activity'] = {
+            'timestamp': latest_activity.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'bytes_received': latest_activity.bytes_received,
+            'bytes_sent': latest_activity.bytes_sent,
+            'packets_received': latest_activity.packets_received,
+            'packets_sent': latest_activity.packets_sent
+        }
+    
+    return jsonify(response)

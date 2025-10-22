@@ -28,8 +28,8 @@ class TrafficMonitor:
         self.running = False
         self.thread = None
         
-        # Statystyki: {ip_address: {'bytes_in': int, 'bytes_out': int, 'packets_in': int, 'packets_out': int}}
-        self.stats = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'packets_in': 0, 'packets_out': 0})
+        # Statystyki: {ip_address: {'bytes_in': int, 'bytes_out': int, 'packets_in': int, 'packets_out': int, 'last_update': float}}
+        self.stats = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'packets_in': 0, 'packets_out': 0, 'last_update': time.time()})
         self.stats_lock = threading.Lock()
         
         # IP sieci lokalnej (do określenia kierunku ruchu)
@@ -88,10 +88,21 @@ class TrafficMonitor:
         Returns:
             Słownik ze statystykami dla każdego IP
         """
+        current_time = time.time()
         with self.stats_lock:
-            stats_copy = dict(self.stats)
+            stats_copy = {}
+            for ip, stats in self.stats.items():
+                stats_copy[ip] = dict(stats)
+            
             if reset:
-                self.stats.clear()
+                # Resetuj liczniki ale zachowaj timestamp
+                for ip in self.stats:
+                    self.stats[ip]['bytes_in'] = 0
+                    self.stats[ip]['bytes_out'] = 0
+                    self.stats[ip]['packets_in'] = 0
+                    self.stats[ip]['packets_out'] = 0
+                    self.stats[ip]['last_update'] = current_time
+            
             return stats_copy
     
     def _capture_loop(self):
@@ -138,16 +149,26 @@ class TrafficMonitor:
     def get_current_rates(self) -> Dict[str, Tuple[float, float]]:
         """
         Zwraca aktualne prędkości dla każdego urządzenia (KB/s)
+        Oblicza rzeczywistą prędkość na podstawie czasu od ostatniej aktualizacji
         
         Returns:
             {ip: (download_kbps, upload_kbps)}
         """
+        current_time = time.time()
         with self.stats_lock:
             rates = {}
             for ip, stats in self.stats.items():
-                # Przelicz na KB/s (zakładając że zbieramy przez update_interval sekund)
-                download_kbps = (stats['bytes_in'] / 1024) / self.update_interval
-                upload_kbps = (stats['bytes_out'] / 1024) / self.update_interval
+                # Oblicz czas od ostatniej aktualizacji
+                time_elapsed = current_time - stats.get('last_update', current_time)
+                
+                if time_elapsed > 0:
+                    # Przelicz na KB/s na podstawie rzeczywistego czasu
+                    download_kbps = (stats['bytes_in'] / 1024) / time_elapsed
+                    upload_kbps = (stats['bytes_out'] / 1024) / time_elapsed
+                else:
+                    download_kbps = 0
+                    upload_kbps = 0
+                
                 rates[ip] = (download_kbps, upload_kbps)
             return rates
 

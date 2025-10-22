@@ -163,6 +163,91 @@
                 });
             }
         }
+
+        // Real-time update statystyk
+        const deviceId = {{ device.id }};
+        
+        function updateStats() {
+            fetch(`/api/device/${deviceId}/stats`)
+                .then(response => response.json())
+                .then(data => {
+                    // Aktualizuj prędkości
+                    const downloadElements = document.querySelectorAll('.stat-card:nth-child(1) .stat-value');
+                    const uploadElements = document.querySelectorAll('.stat-card:nth-child(2) .stat-value');
+                    const lastSeenElements = document.querySelectorAll('.stat-card:nth-child(4) .stat-value');
+                    
+                    if (downloadElements.length > 0) {
+                        downloadElements[0].textContent = data.download_rate_formatted;
+                        // Dodaj animację przy zmianie
+                        downloadElements[0].style.color = data.download_rate > 0 ? '#667eea' : '#999';
+                    }
+                    
+                    if (uploadElements.length > 0) {
+                        uploadElements[0].textContent = data.upload_rate_formatted;
+                        uploadElements[0].style.color = data.upload_rate > 0 ? '#667eea' : '#999';
+                    }
+                    
+                    if (lastSeenElements.length > 0) {
+                        lastSeenElements[0].textContent = data.last_seen;
+                    }
+                    
+                    // Aktualizuj status badge
+                    const statusBadge = document.querySelector('.status-badge');
+                    if (statusBadge) {
+                        if (data.status === 'online') {
+                            statusBadge.className = 'status-badge status-active';
+                            statusBadge.textContent = '🟢 Online';
+                        } else {
+                            statusBadge.className = 'status-badge status-inactive';
+                            statusBadge.textContent = '🔴 Offline';
+                        }
+                    }
+                    
+                    // Dodaj nową aktywność do tabeli jeśli jest nowsza
+                    if (data.latest_activity) {
+                        const tbody = document.querySelector('.activity-table tbody');
+                        const firstRow = tbody.querySelector('tr');
+                        
+                        // Sprawdź czy to nowy wpis
+                        if (firstRow && !firstRow.classList.contains('no-data')) {
+                            const firstTimestamp = firstRow.querySelector('td:first-child').textContent;
+                            if (firstTimestamp !== data.latest_activity.timestamp) {
+                                // Dodaj nowy wiersz na górze
+                                const newRow = document.createElement('tr');
+                                newRow.innerHTML = `
+                                    <td>${data.latest_activity.timestamp}</td>
+                                    <td>${(data.latest_activity.bytes_received / 1024 / 1024).toFixed(2)} MB</td>
+                                    <td>${(data.latest_activity.bytes_sent / 1024 / 1024).toFixed(2)} MB</td>
+                                    <td>${data.latest_activity.packets_received}</td>
+                                    <td>${data.latest_activity.packets_sent}</td>
+                                `;
+                                newRow.style.backgroundColor = '#e8f5e9';
+                                tbody.insertBefore(newRow, firstRow);
+                                
+                                // Usuń animację po 2 sekundach
+                                setTimeout(() => {
+                                    newRow.style.backgroundColor = '';
+                                }, 2000);
+                                
+                                // Ogranicz do 100 wierszy
+                                const rows = tbody.querySelectorAll('tr');
+                                if (rows.length > 100) {
+                                    rows[rows.length - 1].remove();
+                                }
+                            }
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania statystyk:', error);
+                });
+        }
+        
+        // Aktualizuj co 2 sekundy
+        setInterval(updateStats, 2000);
+        
+        // Pierwsze wywołanie po załadowaniu strony
+        updateStats();
     </script>
 </body>
 </html>
