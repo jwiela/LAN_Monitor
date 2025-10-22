@@ -36,7 +36,7 @@ class Device(db.Model):
     __tablename__ = 'devices'
     
     id = db.Column(db.Integer, primary_key=True)
-    mac_address = db.Column(db.String(17), unique=True, nullable=False)  # Format: AA:BB:CC:DD:EE:FF
+    mac_address = db.Column(db.String(17), unique=False, nullable=True)  # Format: AA:BB:CC:DD:EE:FF, może być None
     ip_address = db.Column(db.String(15), nullable=True)  # IPv4
     hostname = db.Column(db.String(255), nullable=True)
     vendor = db.Column(db.String(255), nullable=True)  # Producent na podstawie MAC

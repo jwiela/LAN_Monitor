@@ -11,9 +11,60 @@
     <nav class="navbar">
         <a href="{{ url_for('main.dashboard') }}" class="navbar-brand">🌐 LAN Monitor</a>
         <div class="navbar-menu">
-            <span>👤 {{ current_user.username }}</span>
-            <a href="{{ url_for('auth.change_password') }}">Zmień hasło</a>
-            <a href="{{ url_for('auth.logout') }}">Wyloguj</a>
+            <!-- Dropdown alertów -->
+            <div class="dropdown">
+                <button class="dropdown-toggle" onclick="toggleDropdown('alerts-dropdown')">
+                    �
+                    {% if recent_alerts|length > 0 %}
+                        <span class="notification-badge">{{ recent_alerts|length }}</span>
+                    {% endif %}
+                </button>
+                <div id="alerts-dropdown" class="dropdown-menu">
+                    <div class="dropdown-header">
+                        <strong>Alerty</strong>
+                    </div>
+                    {% if recent_alerts %}
+                        {% for alert in recent_alerts[:5] %}
+                            <div class="dropdown-item alert-dropdown-item">
+                                <div class="alert-dropdown-icon">
+                                    {% if alert.severity == 'critical' %}⚠️
+                                    {% elif alert.severity == 'warning' %}⚡
+                                    {% else %}ℹ️{% endif %}
+                                </div>
+                                <div class="alert-dropdown-content">
+                                    <strong>{{ alert.alert_type }}</strong>
+                                    <p>{{ alert.message[:50] }}...</p>
+                                    <small>{{ alert.created_at.strftime('%H:%M') }}</small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="dropdown-item-empty">
+                            Brak nowych alertów
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Dropdown użytkownika -->
+            <div class="dropdown">
+                <button class="dropdown-toggle user-dropdown-toggle" onclick="toggleDropdown('user-dropdown')">
+                    �👤 {{ current_user.username }}
+                    <span class="dropdown-arrow">▼</span>
+                </button>
+                <div id="user-dropdown" class="dropdown-menu dropdown-menu-right">
+                    <div class="dropdown-header">
+                        <strong>{{ current_user.username }}</strong>
+                    </div>
+                    <a href="{{ url_for('auth.change_password') }}" class="dropdown-item">
+                        🔑 Zmień hasło
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a href="{{ url_for('auth.logout') }}" class="dropdown-item">
+                        🚪 Wyloguj
+                    </a>
+                </div>
+            </div>
         </div>
     </nav>
 
@@ -67,7 +118,12 @@
         <!-- Lista urządzeń -->
         <div class="content-section">
             <div class="section-header">
-                <h2>Urządzenia w sieci</h2>
+                <div class="section-header-content">
+                    <h2>Urządzenia w sieci</h2>
+                    <a href="{{ url_for('main.scan_network') }}" class="btn btn-scan">
+                        🔍 Skanuj sieć
+                    </a>
+                </div>
             </div>
             
             {% if devices %}
@@ -138,5 +194,33 @@
         </div>
         {% endif %}
     </div>
+
+    <script>
+        // Obsługa dropdownów
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById(id);
+            const allDropdowns = document.querySelectorAll('.dropdown-menu');
+            
+            // Zamknij wszystkie inne dropdowny
+            allDropdowns.forEach(d => {
+                if (d.id !== id) {
+                    d.classList.remove('show');
+                }
+            });
+            
+            // Toggle aktualnego dropdowna
+            dropdown.classList.toggle('show');
+        }
+
+        // Zamknij dropdown po kliknięciu poza nim
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-toggle')) {
+                const dropdowns = document.querySelectorAll('.dropdown-menu');
+                dropdowns.forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
+            }
+        }
+    </script>
 </body>
 </html>

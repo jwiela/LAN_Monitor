@@ -1,10 +1,12 @@
 """
 Blueprint głównych stron - dashboard, strona główna, szczegóły urządzenia
 """
-from flask import Blueprint, render_template, redirect, url_for
+from flask import Blueprint, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app.models import Device, DeviceActivity, Alert
+from app import db
 from sqlalchemy import desc
+import threading
 
 main_bp = Blueprint('main', __name__)
 
@@ -55,3 +57,38 @@ def device_detail(device_id):
     return render_template('device_detail.html',
                          device=device,
                          activities=activities)
+
+
+@main_bp.route('/scan-network')
+@login_required
+def scan_network():
+    """Uruchom skanowanie sieci w tle"""
+    def run_scan_task():
+        """Zadanie skanowania w tle"""
+        from app import create_app
+        from core.network_scanner import NetworkScanner
+        
+        app = create_app()
+        with app.app_context():
+            try:
+                scanner = NetworkScanner()
+                # Automatyczne wykrycie zakresu sieci
+                network_range = scanner.get_network_interface_range()
+                scanner.network_range = network_range
+                
+                # Wykonaj skanowanie
+                devices = scanner.scan_network()
+                
+                # Aktualizuj bazę danych
+                if devices:
+                    scanner.update_database(devices)
+            except Exception as e:
+                print(f"❌ Błąd podczas skanowania: {e}")
+    
+    # Uruchom skanowanie w osobnym wątku
+    thread = threading.Thread(target=run_scan_task)
+    thread.daemon = True
+    thread.start()
+    
+    flash('Skanowanie sieci zostało uruchomione w tle. Odśwież stronę za chwilę.', 'info')
+    return redirect(url_for('main.dashboard'))
