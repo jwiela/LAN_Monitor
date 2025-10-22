@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logowanie - LAN Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h1>🌐 LAN Monitor</h1>
+                <p>System monitorowania sieci lokalnej</p>
+            </div>
+            
+            <!-- Wyświetlanie komunikatów flash -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form method="POST" action="{{ url_for('auth.login') }}" class="login-form">
+                <div class="form-group">
+                    <label for="username">Nazwa użytkownika</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        required 
+                        autofocus
+                        placeholder="admin"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Hasło</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        required
+                        placeholder="••••••••"
+                    >
+                </div>
+                
+                <div class="form-group checkbox">
+                    <label>
+                        <input type="checkbox" name="remember" value="true">
+                        Zapamiętaj mnie
+                    </label>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Zaloguj się</button>
+            </form>
+            
+            <div class="login-footer">
+                <p>Domyślne dane: <strong>admin / admin</strong></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

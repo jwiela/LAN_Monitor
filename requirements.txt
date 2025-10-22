@@ -1,0 +1,29 @@
+# Web Framework
+Flask==3.0.3
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Werkzeug==3.0.3
+
+# Database
+SQLAlchemy==2.0.35
+Flask-SQLAlchemy==3.1.1
+influxdb-client==1.38.0
+
+# Network monitoring
+scapy==2.6.1
+python-nmap==0.7.1
+
+# Email alerts
+Flask-Mail==0.10.0
+
+# Data processing
+pandas==2.2.3
+
+# Configuration
+python-dotenv==1.0.1
+
+# Security
+bcrypt==4.2.0
+
+# Utils
+psutil==6.1.0

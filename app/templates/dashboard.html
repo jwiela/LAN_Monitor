@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - LAN Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dashboard">
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="{{ url_for('main.dashboard') }}" class="navbar-brand">🌐 LAN Monitor</a>
+        <div class="navbar-menu">
+            <span>👤 {{ current_user.username }}</span>
+            <a href="{{ url_for('auth.change_password') }}">Zmień hasło</a>
+            <a href="{{ url_for('auth.logout') }}">Wyloguj</a>
+        </div>
+    </nav>
+
+    <!-- Komunikaty Flash -->
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Statystyki -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-info">
+                    <h3>{{ total_devices }}</h3>
+                    <p>Wszystkie urządzenia</p>
+                </div>
+            </div>
+            
+            <div class="stat-card stat-success">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <h3>{{ online_devices }}</h3>
+                    <p>Online</p>
+                </div>
+            </div>
+            
+            <div class="stat-card stat-warning">
+                <div class="stat-icon">🆕</div>
+                <div class="stat-info">
+                    <h3>{{ new_devices }}</h3>
+                    <p>Nowe urządzenia</p>
+                </div>
+            </div>
+            
+            <div class="stat-card stat-info">
+                <div class="stat-icon">🔔</div>
+                <div class="stat-info">
+                    <h3>{{ recent_alerts|length }}</h3>
+                    <p>Alerty</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista urządzeń -->
+        <div class="content-section">
+            <div class="section-header">
+                <h2>Urządzenia w sieci</h2>
+            </div>
+            
+            {% if devices %}
+                <div class="devices-grid">
+                    {% for device in devices %}
+                        <div class="device-card {% if not device.is_online %}offline{% endif %}">
+                            <div class="device-header">
+                                <div class="device-icon">
+                                    {% if device.is_online %}🟢{% else %}🔴{% endif %}
+                                    💻
+                                </div>
+                                {% if device.is_new %}
+                                    <span class="badge badge-new">NOWE</span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="device-info">
+                                <h3>{{ device.hostname or 'Nieznane urządzenie' }}</h3>
+                                <p class="device-ip">IP: {{ device.ip_address or 'N/A' }}</p>
+                                <p class="device-mac">MAC: {{ device.mac_address }}</p>
+                                {% if device.vendor %}
+                                    <p class="device-vendor">{{ device.vendor }}</p>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="device-footer">
+                                <small>Ostatnio widziane: {{ device.last_seen.strftime('%Y-%m-%d %H:%M') }}</small>
+                                <a href="{{ url_for('main.device_detail', device_id=device.id) }}" class="btn-link">
+                                    Szczegóły →
+                                </a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">📡</div>
+                    <h3>Brak urządzeń</h3>
+                    <p>Nie wykryto jeszcze żadnych urządzeń w sieci.</p>
+                    <p>System skanowania rozpocznie pracę wkrótce.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Alerty -->
+        {% if recent_alerts %}
+        <div class="content-section">
+            <div class="section-header">
+                <h2>Ostatnie alerty</h2>
+            </div>
+            
+            <div class="alerts-list">
+                {% for alert in recent_alerts %}
+                    <div class="alert-item alert-{{ alert.severity }}">
+                        <div class="alert-icon">
+                            {% if alert.severity == 'critical' %}⚠️
+                            {% elif alert.severity == 'warning' %}⚡
+                            {% else %}ℹ️{% endif %}
+                        </div>
+                        <div class="alert-content">
+                            <strong>{{ alert.alert_type }}</strong>
+                            <p>{{ alert.message }}</p>
+                            <small>{{ alert.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

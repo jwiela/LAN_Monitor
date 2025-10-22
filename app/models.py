@@ -1,0 +1,121 @@
+"""
+Modele bazy danych dla aplikacji
+"""
+from datetime import datetime
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+from app import db, login_manager
+from config import Config
+
+
+class User(UserMixin, db.Model):
+    """Model użytkownika"""
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime, nullable=True)
+    
+    def set_password(self, password):
+        """Ustaw zahashowane hasło"""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Sprawdź poprawność hasła"""
+        return check_password_hash(self.password_hash, password)
+    
+    def __repr__(self):
+        return f'<User {self.username}>'
+
+
+class Device(db.Model):
+    """Model urządzenia w sieci"""
+    __tablename__ = 'devices'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    mac_address = db.Column(db.String(17), unique=True, nullable=False)  # Format: AA:BB:CC:DD:EE:FF
+    ip_address = db.Column(db.String(15), nullable=True)  # IPv4
+    hostname = db.Column(db.String(255), nullable=True)
+    vendor = db.Column(db.String(255), nullable=True)  # Producent na podstawie MAC
+    device_type = db.Column(db.String(50), nullable=True)  # np. 'computer', 'phone', 'router'
+    first_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    is_online = db.Column(db.Boolean, default=True)
+    is_new = db.Column(db.Boolean, default=True)  # Flaga dla alertów o nowym urządzeniu
+    
+    # Relacja do aktywności
+    activities = db.relationship('DeviceActivity', backref='device', lazy='dynamic', 
+                                cascade='all, delete-orphan')
+    
+    def update_last_seen(self):
+        """Aktualizuj czas ostatniego widzenia urządzenia"""
+        self.last_seen = datetime.utcnow()
+        self.is_online = True
+        db.session.commit()
+    
+    def mark_offline(self):
+        """Oznacz urządzenie jako offline"""
+        self.is_online = False
+        db.session.commit()
+    
+    def __repr__(self):
+        return f'<Device {self.mac_address} ({self.ip_address})>'
+
+
+class DeviceActivity(db.Model):
+    """Model aktywności urządzenia (ruch sieciowy)"""
+    __tablename__ = 'device_activities'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    # Statystyki ruchu (w bajtach)
+    bytes_sent = db.Column(db.BigInteger, default=0)
+    bytes_received = db.Column(db.BigInteger, default=0)
+    packets_sent = db.Column(db.Integer, default=0)
+    packets_received = db.Column(db.Integer, default=0)
+    
+    def __repr__(self):
+        return f'<DeviceActivity {self.device_id} at {self.timestamp}>'
+
+
+class Alert(db.Model):
+    """Model alertów systemowych"""
+    __tablename__ = 'alerts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    alert_type = db.Column(db.String(50), nullable=False)  # 'new_device', 'unusual_traffic', etc.
+    severity = db.Column(db.String(20), default='info')  # 'info', 'warning', 'critical'
+    message = db.Column(db.Text, nullable=False)
+    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    is_read = db.Column(db.Boolean, default=False)
+    is_sent = db.Column(db.Boolean, default=False)  # Czy alert został wysłany mailem
+    
+    device = db.relationship('Device', backref='alerts')
+    
+    def __repr__(self):
+        return f'<Alert {self.alert_type} - {self.severity}>'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Callback do ładowania użytkownika dla Flask-Login"""
+    return User.query.get(int(user_id))
+
+
+def init_default_user():
+    """
+    Inicjalizuj domyślnego użytkownika admin, jeśli nie istnieje
+    """
+    admin = User.query.filter_by(username=Config.ADMIN_USERNAME).first()
+    if not admin:
+        admin = User(username=Config.ADMIN_USERNAME)
+        admin.set_password(Config.ADMIN_PASSWORD)
+        db.session.add(admin)
+        db.session.commit()
+        print(f"✓ Utworzono domyślnego użytkownika: {Config.ADMIN_USERNAME}")
