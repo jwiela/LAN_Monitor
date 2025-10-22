@@ -67,7 +67,7 @@ class InfluxDBWriter:
             return
         
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now()
         
         try:
             points = []

@@ -118,7 +118,7 @@ class TrafficManager:
                     
                     # Aktualizuj last_seen jeśli urządzenie ma ruch
                     if data['bytes_in'] > 0 or data['bytes_out'] > 0:
-                        device.last_seen = datetime.utcnow()
+                        device.last_seen = datetime.now()
                         device.is_online = True
                 
                 db.session.commit()

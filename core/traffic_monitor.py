@@ -28,9 +28,13 @@ class TrafficMonitor:
         self.running = False
         self.thread = None
         
-        # Statystyki: {ip_address: {'bytes_in': int, 'bytes_out': int, 'packets_in': int, 'packets_out': int, 'last_update': float}}
-        self.stats = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'packets_in': 0, 'packets_out': 0, 'last_update': time.time()})
+        # Statystyki dla zapisu do bazy (resetowane co 60s)
+        self.stats = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'packets_in': 0, 'packets_out': 0})
         self.stats_lock = threading.Lock()
+        
+        # Kumulatywne statystyki dla obliczania rate (NIGDY nie resetowane)
+        self.cumulative = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'start_time': time.time()})
+        self.cumulative_lock = threading.Lock()
         
         # IP sieci lokalnej (do określenia kierunku ruchu)
         self.local_network = '192.168.1.0/24'
@@ -57,6 +61,7 @@ class TrafficMonitor:
                 src_local = self._is_local_ip(src_ip)
                 dst_local = self._is_local_ip(dst_ip)
                 
+                # Aktualizuj stats (dla zapisu do bazy)
                 with self.stats_lock:
                     # Ruch wychodzący (z sieci lokalnej)
                     if src_local and not dst_local:
@@ -74,13 +79,23 @@ class TrafficMonitor:
                         self.stats[src_ip]['packets_out'] += 1
                         self.stats[dst_ip]['bytes_in'] += packet_size
                         self.stats[dst_ip]['packets_in'] += 1
+                
+                # Aktualizuj cumulative (dla real-time rate) - NIGDY nie resetowane
+                with self.cumulative_lock:
+                    if src_local and not dst_local:
+                        self.cumulative[src_ip]['bytes_out'] += packet_size
+                    elif not src_local and dst_local:
+                        self.cumulative[dst_ip]['bytes_in'] += packet_size
+                    elif src_local and dst_local:
+                        self.cumulative[src_ip]['bytes_out'] += packet_size
+                        self.cumulative[dst_ip]['bytes_in'] += packet_size
                         
         except Exception as e:
             logger.error(f"Błąd przetwarzania pakietu: {e}")
     
     def get_stats(self, reset=True) -> Dict[str, Dict[str, int]]:
         """
-        Pobiera zgromadzone statystyki
+        Pobiera zgromadzone statystyki (dla zapisu do bazy co 60s)
         
         Args:
             reset: Czy wyzerować statystyki po pobraniu
@@ -88,20 +103,14 @@ class TrafficMonitor:
         Returns:
             Słownik ze statystykami dla każdego IP
         """
-        current_time = time.time()
         with self.stats_lock:
             stats_copy = {}
             for ip, stats in self.stats.items():
                 stats_copy[ip] = dict(stats)
             
             if reset:
-                # Resetuj liczniki ale zachowaj timestamp
-                for ip in self.stats:
-                    self.stats[ip]['bytes_in'] = 0
-                    self.stats[ip]['bytes_out'] = 0
-                    self.stats[ip]['packets_in'] = 0
-                    self.stats[ip]['packets_out'] = 0
-                    self.stats[ip]['last_update'] = current_time
+                # Resetuj liczniki dla zapisu do bazy
+                self.stats.clear()
             
             return stats_copy
     
@@ -149,22 +158,22 @@ class TrafficMonitor:
     def get_current_rates(self) -> Dict[str, Tuple[float, float]]:
         """
         Zwraca aktualne prędkości dla każdego urządzenia (KB/s)
-        Oblicza rzeczywistą prędkość na podstawie czasu od ostatniej aktualizacji
+        Używa kumulatywnych statystyk które nigdy nie są resetowane
         
         Returns:
             {ip: (download_kbps, upload_kbps)}
         """
         current_time = time.time()
-        with self.stats_lock:
+        with self.cumulative_lock:
             rates = {}
-            for ip, stats in self.stats.items():
-                # Oblicz czas od ostatniej aktualizacji
-                time_elapsed = current_time - stats.get('last_update', current_time)
+            for ip, data in self.cumulative.items():
+                # Oblicz czas od startu monitoringu tego IP
+                time_elapsed = current_time - data['start_time']
                 
                 if time_elapsed > 0:
-                    # Przelicz na KB/s na podstawie rzeczywistego czasu
-                    download_kbps = (stats['bytes_in'] / 1024) / time_elapsed
-                    upload_kbps = (stats['bytes_out'] / 1024) / time_elapsed
+                    # Przelicz na KB/s
+                    download_kbps = (data['bytes_in'] / 1024) / time_elapsed
+                    upload_kbps = (data['bytes_out'] / 1024) / time_elapsed
                 else:
                     download_kbps = 0
                     upload_kbps = 0

@@ -36,7 +36,7 @@ def login():
             login_user(user, remember=remember)
             
             # Aktualizuj czas ostatniego logowania
-            user.last_login = datetime.utcnow()
+            user.last_login = datetime.now()
             db.session.commit()
             
             flash(f'Witaj, {user.username}!', 'success')

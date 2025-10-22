@@ -16,7 +16,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     last_login = db.Column(db.DateTime, nullable=True)
     
     def set_password(self, password):
@@ -41,8 +41,8 @@ class Device(db.Model):
     hostname = db.Column(db.String(255), nullable=True)
     vendor = db.Column(db.String(255), nullable=True)  # Producent na podstawie MAC
     device_type = db.Column(db.String(50), nullable=True)  # np. 'computer', 'phone', 'router'
-    first_seen = db.Column(db.DateTime, default=datetime.utcnow)
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    first_seen = db.Column(db.DateTime, default=datetime.now)
+    last_seen = db.Column(db.DateTime, default=datetime.now)
     is_online = db.Column(db.Boolean, default=True)
     is_new = db.Column(db.Boolean, default=True)  # Flaga dla alertów o nowym urządzeniu
     
@@ -52,7 +52,7 @@ class Device(db.Model):
     
     def update_last_seen(self):
         """Aktualizuj czas ostatniego widzenia urządzenia"""
-        self.last_seen = datetime.utcnow()
+        self.last_seen = datetime.now()
         self.is_online = True
         db.session.commit()
     
@@ -71,7 +71,7 @@ class DeviceActivity(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime, default=datetime.now, index=True)
     
     # Statystyki ruchu (w bajtach)
     bytes_sent = db.Column(db.BigInteger, default=0)
@@ -92,7 +92,7 @@ class Alert(db.Model):
     severity = db.Column(db.String(20), default='info')  # 'info', 'warning', 'critical'
     message = db.Column(db.Text, nullable=False)
     device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
     is_read = db.Column(db.Boolean, default=False)
     is_sent = db.Column(db.Boolean, default=False)  # Czy alert został wysłany mailem
     

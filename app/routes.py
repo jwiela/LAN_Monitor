@@ -135,11 +135,19 @@ def device_stats_api(device_id):
     from flask import jsonify
     from core.traffic_manager import traffic_manager
     
+    import logging
+    logger = logging.getLogger(__name__)
+    
     device = Device.query.get_or_404(device_id)
     
     # Pobierz bieżące prędkości (KB/s) z traffic monitor
     rates = traffic_manager.traffic_monitor.get_current_rates()
     device_rate = rates.get(device.ip_address, (0, 0))
+    
+    # Debug logging
+    logger.debug(f"API call for device {device.ip_address}")
+    logger.debug(f"All rates: {list(rates.keys())}")
+    logger.debug(f"Device rate: {device_rate}")
     
     # Pobierz najnowszą aktywność z bazy
     latest_activity = DeviceActivity.query.filter_by(device_id=device_id)\

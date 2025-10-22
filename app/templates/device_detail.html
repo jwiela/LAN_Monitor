@@ -171,6 +171,7 @@
             fetch(`/api/device/${deviceId}/stats`)
                 .then(response => response.json())
                 .then(data => {
+                    console.log('API Response:', data);  // DEBUG
                     // Aktualizuj prędkości
                     const downloadElements = document.querySelectorAll('.stat-card:nth-child(1) .stat-value');
                     const uploadElements = document.querySelectorAll('.stat-card:nth-child(2) .stat-value');
