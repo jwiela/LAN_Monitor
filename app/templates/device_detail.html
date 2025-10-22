@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ device.ip_address }} - LAN Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h1>🌐 LAN Monitor</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="{{ url_for('main.dashboard') }}">← Powrót do dashboardu</a>
+                
+                <div class="dropdown">
+                    <button class="dropdown-toggle" onclick="toggleDropdown('userDropdown')">
+                        👤 {{ current_user.username }}
+                    </button>
+                    <div id="userDropdown" class="dropdown-menu">
+                        <a href="{{ url_for('auth.change_password') }}">🔑 Zmień hasło</a>
+                        <a href="{{ url_for('auth.logout') }}">🚪 Wyloguj</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="device-header">
+            <div class="device-info">
+                <h2>{{ device.vendor or '🖥️ Nieznane urządzenie' }}</h2>
+                <div class="device-details">
+                    <span class="detail-item">
+                        <strong>IP:</strong> {{ device.ip_address }}
+                    </span>
+                    {% if device.mac_address %}
+                    <span class="detail-item">
+                        <strong>MAC:</strong> {{ device.mac_address }}
+                    </span>
+                    {% endif %}
+                    <span class="detail-item">
+                        <strong>Status:</strong> 
+                        <span class="status-badge {{ 'status-active' if device.status == 'online' else 'status-inactive' }}">
+                            {{ '🟢 Online' if device.status == 'online' else '🔴 Offline' }}
+                        </span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statystyki bieżące -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📥</div>
+                <div class="stat-content">
+                    <div class="stat-label">Pobieranie</div>
+                    <div class="stat-value">{{ download_rate }}</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📤</div>
+                <div class="stat-content">
+                    <div class="stat-label">Wysyłanie</div>
+                    <div class="stat-value">{{ upload_rate }}</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-content">
+                    <div class="stat-label">Całkowity ruch (24h)</div>
+                    <div class="stat-value">{{ total_traffic }}</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⏱️</div>
+                <div class="stat-content">
+                    <div class="stat-label">Ostatnia aktywność</div>
+                    <div class="stat-value">{{ last_seen }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wykresy Grafana -->
+        {% if grafana_enabled %}
+        <div class="grafana-section">
+            <h3>📈 Wykresy ruchu sieciowego (24h)</h3>
+            <div class="grafana-embed">
+                <iframe
+                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=1&theme=light"
+                    width="100%"
+                    height="400"
+                    frameborder="0">
+                </iframe>
+            </div>
+            <div class="grafana-embed">
+                <iframe
+                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=2&theme=light"
+                    width="100%"
+                    height="400"
+                    frameborder="0">
+                </iframe>
+            </div>
+        </div>
+        {% else %}
+        <div class="info-box">
+            <p>⚠️ Grafana nie jest włączona. Aby zobaczyć wykresy, skonfiguruj InfluxDB i Grafanę w pliku .env</p>
+        </div>
+        {% endif %}
+
+        <!-- Historia aktywności -->
+        <div class="activity-section">
+            <h3>📜 Historia aktywności</h3>
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Czas</th>
+                        <th>Pobrane</th>
+                        <th>Wysłane</th>
+                        <th>Pakiety ↓</th>
+                        <th>Pakiety ↑</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for activity in activities %}
+                    <tr>
+                        <td>{{ activity.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>{{ (activity.bytes_received / 1024 / 1024) | round(2) }} MB</td>
+                        <td>{{ (activity.bytes_sent / 1024 / 1024) | round(2) }} MB</td>
+                        <td>{{ activity.packets_received }}</td>
+                        <td>{{ activity.packets_sent }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="no-data">Brak danych o aktywności</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById(id);
+            dropdown.classList.toggle('show');
+            
+            // Zamknij inne dropdowny
+            document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                if (menu.id !== id) {
+                    menu.classList.remove('show');
+                }
+            });
+        }
+
+        // Zamknij dropdown po kliknięciu poza nim
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-toggle')) {
+                document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+            }
+        }
+    </script>
+</body>
+</html>

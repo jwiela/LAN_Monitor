@@ -28,13 +28,18 @@ class Config:
     # Network
     NETWORK_INTERFACE = os.getenv('NETWORK_INTERFACE', 'eth0')
     SCAN_INTERVAL = int(os.getenv('SCAN_INTERVAL', 300))  # sekundy
+    TRAFFIC_UPDATE_INTERVAL = int(os.getenv('TRAFFIC_UPDATE_INTERVAL', 60))  # sekundy
     
     # InfluxDB (opcjonalnie)
-    INFLUXDB_ENABLED = os.getenv('INFLUXDB_URL') is not None
+    INFLUXDB_ENABLED = os.getenv('INFLUXDB_ENABLED', 'false').lower() == 'true'
     INFLUXDB_URL = os.getenv('INFLUXDB_URL', 'http://localhost:8086')
     INFLUXDB_TOKEN = os.getenv('INFLUXDB_TOKEN', '')
-    INFLUXDB_ORG = os.getenv('INFLUXDB_ORG', 'lan-monitor')
-    INFLUXDB_BUCKET = os.getenv('INFLUXDB_BUCKET', 'network-metrics')
+    INFLUXDB_ORG = os.getenv('INFLUXDB_ORG', 'lan_monitor')
+    INFLUXDB_BUCKET = os.getenv('INFLUXDB_BUCKET', 'network_traffic')
+    
+    # Grafana
+    GRAFANA_URL = os.getenv('GRAFANA_URL', 'http://localhost:3000')
+    GRAFANA_ENABLED = os.getenv('GRAFANA_ENABLED', 'false').lower() == 'true'
     
     # Email
     MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')

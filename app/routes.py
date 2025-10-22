@@ -46,6 +46,10 @@ def dashboard():
 @login_required
 def device_detail(device_id):
     """Szczegóły urządzenia - ruch sieciowy, statystyki"""
+    from datetime import datetime, timedelta
+    from flask import current_app
+    from core.traffic_manager import traffic_manager
+    
     device = Device.query.get_or_404(device_id)
     
     # Pobierz aktywność z ostatnich 24h
@@ -54,9 +58,42 @@ def device_detail(device_id):
         .limit(100)\
         .all()
     
+    # Pobierz bieżące statystyki ruchu
+    current_stats = traffic_manager.get_device_stats(device.ip_address)
+    
+    if current_stats:
+        download_rate = f"{current_stats['bytes_in'] / 1024:.2f} KB/s"
+        upload_rate = f"{current_stats['bytes_out'] / 1024:.2f} KB/s"
+    else:
+        download_rate = "0 KB/s"
+        upload_rate = "0 KB/s"
+    
+    # Oblicz całkowity ruch z ostatnich 24h
+    total_bytes_in = sum(a.bytes_received for a in activities)
+    total_bytes_out = sum(a.bytes_sent for a in activities)
+    total_traffic = f"{(total_bytes_in + total_bytes_out) / 1024 / 1024:.2f} MB"
+    
+    # Ostatnia aktywność
+    if device.last_seen:
+        last_seen = device.last_seen.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        last_seen = "Nigdy"
+    
+    # Konfiguracja Grafana
+    grafana_enabled = current_app.config.get('GRAFANA_ENABLED', False)
+    grafana_url = current_app.config.get('GRAFANA_URL', 'http://localhost:3000')
+    dashboard_uid = 'device-traffic'  # UID dashboardu w Grafanie
+    
     return render_template('device_detail.html',
                          device=device,
-                         activities=activities)
+                         activities=activities,
+                         download_rate=download_rate,
+                         upload_rate=upload_rate,
+                         total_traffic=total_traffic,
+                         last_seen=last_seen,
+                         grafana_enabled=grafana_enabled,
+                         grafana_url=grafana_url,
+                         dashboard_uid=dashboard_uid)
 
 
 @main_bp.route('/scan-network')

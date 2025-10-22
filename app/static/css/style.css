@@ -702,6 +702,141 @@ body {
     color: #999;
 }
 
+/* Strona szczegółów urządzenia */
+.device-header {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.device-info h2 {
+    color: #667eea;
+    margin-bottom: 15px;
+    font-size: 28px;
+}
+
+.device-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.detail-item {
+    font-size: 14px;
+    color: #666;
+}
+
+.detail-item strong {
+    color: #333;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-inactive {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Grafana embeds */
+.grafana-section {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.grafana-section h3 {
+    color: #667eea;
+    margin-bottom: 20px;
+    font-size: 20px;
+}
+
+.grafana-embed {
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.grafana-embed iframe {
+    display: block;
+    border: none;
+}
+
+/* Tabela aktywności */
+.activity-section {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.activity-section h3 {
+    color: #667eea;
+    margin-bottom: 20px;
+    font-size: 20px;
+}
+
+.activity-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.activity-table thead {
+    background: #f8f9fa;
+}
+
+.activity-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.activity-table td {
+    padding: 12px;
+    border-bottom: 1px solid #dee2e6;
+    color: #666;
+}
+
+.activity-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.activity-table .no-data {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+    font-style: italic;
+}
+
+/* Info box */
+.info-box {
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    color: #856404;
+}
+
 /* Responsywność */
 @media (max-width: 480px) {
     .login-box {
@@ -711,4 +846,19 @@ body {
     .login-header h1 {
         font-size: 24px;
     }
+    
+    .device-details {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .activity-table {
+        font-size: 12px;
+    }
+    
+    .activity-table th,
+    .activity-table td {
+        padding: 8px;
+    }
 }
+
