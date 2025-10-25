@@ -42,11 +42,16 @@ class TrafficManager:
         
         # Inicjalizuj writer do InfluxDB (jeśli włączony)
         if app.config.get('INFLUXDB_ENABLED', False):
+            influx_url = app.config.get('INFLUXDB_URL')
+            influx_token = app.config.get('INFLUXDB_TOKEN')
+            influx_org = app.config.get('INFLUXDB_ORG')
+            influx_bucket = app.config.get('INFLUXDB_BUCKET')
+            logger.info(f"🔧 InfluxDB Config: url={influx_url}, org={influx_org}, bucket={influx_bucket}")
             self.influx_writer = InfluxDBWriter(
-                url=app.config.get('INFLUXDB_URL'),
-                token=app.config.get('INFLUXDB_TOKEN'),
-                org=app.config.get('INFLUXDB_ORG'),
-                bucket=app.config.get('INFLUXDB_BUCKET')
+                url=influx_url,
+                token=influx_token,
+                org=influx_org,
+                bucket=influx_bucket
             )
             
             if self.influx_writer.connect():

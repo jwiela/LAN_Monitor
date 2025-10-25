@@ -67,7 +67,7 @@ class InfluxDBWriter:
             return
         
         if timestamp is None:
-            timestamp = datetime.now()
+            timestamp = datetime.utcnow()
         
         try:
             points = []
@@ -77,8 +77,8 @@ class InfluxDBWriter:
                 point_in = Point("traffic") \
                     .tag("ip", ip) \
                     .tag("direction", "in") \
-                    .field("bytes", data['bytes_in']) \
-                    .field("packets", data['packets_in']) \
+                    .field("bytes", int(data['bytes_in'])) \
+                    .field("packets", int(data['packets_in'])) \
                     .time(timestamp, WritePrecision.NS)
                 points.append(point_in)
                 
@@ -86,17 +86,20 @@ class InfluxDBWriter:
                 point_out = Point("traffic") \
                     .tag("ip", ip) \
                     .tag("direction", "out") \
-                    .field("bytes", data['bytes_out']) \
-                    .field("packets", data['packets_out']) \
+                    .field("bytes", int(data['bytes_out'])) \
+                    .field("packets", int(data['packets_out'])) \
                     .time(timestamp, WritePrecision.NS)
                 points.append(point_out)
             
             # Zapis batch
+            logger.debug(f"📝 Zapisuję {len(points)} punktów: bucket={self.bucket}, org={self.org}")
+            logger.debug(f"   Przykładowy punkt: {points[0] if points else 'brak'}")
             self.write_api.write(bucket=self.bucket, org=self.org, record=points)
-            logger.debug(f"✅ Zapisano {len(points)} punktów danych do InfluxDB")
+            logger.info(f"✅ Zapisano {len(points)} punktów danych do InfluxDB (bucket={self.bucket}, org={self.org})")
             
         except Exception as e:
-            logger.error(f"❌ Błąd zapisu do InfluxDB: {e}")
+            logger.error(f"❌ Błąd zapisu do InfluxDB: {e}", exc_info=True)
+            logger.error(f"   Bucket: {self.bucket}, Org: {self.org}")
     
     def write_device_metric(self, ip: str, metric_name: str, value: float, tags: Optional[Dict] = None):
         """

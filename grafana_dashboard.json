@@ -19,7 +19,7 @@
   "links": [],
   "panels": [
     {
-      "datasource": "InfluxDB",
+      "datasource": "Lan_monitoring",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -80,8 +80,8 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "datasource": "InfluxDB",
-          "query": "from(bucket: \"network_traffic\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"traffic\")\n  |> filter(fn: (r) => r.ip == \"${device_ip}\")\n  |> filter(fn: (r) => r.direction == \"in\")\n  |> filter(fn: (r) => r._field == \"bytes\")\n  |> aggregateWindow(every: 5m, fn: sum, createEmpty: false)",
+          "datasource": "Lan_monitoring",
+          "query": "from(bucket: \"lan_monitoring\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"traffic\")\n  |> filter(fn: (r) => r.ip == \"${device_ip}\")\n  |> filter(fn: (r) => r.direction == \"in\")\n  |> filter(fn: (r) => r._field == \"bytes\")\n  |> aggregateWindow(every: 5m, fn: sum, createEmpty: false)",
           "refId": "A"
         }
       ],
@@ -89,7 +89,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": "InfluxDB",
+      "datasource": "Lan_monitoring",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -150,8 +150,8 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "datasource": "InfluxDB",
-          "query": "from(bucket: \"network_traffic\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"traffic\")\n  |> filter(fn: (r) => r.ip == \"${device_ip}\")\n  |> filter(fn: (r) => r.direction == \"out\")\n  |> filter(fn: (r) => r._field == \"bytes\")\n  |> aggregateWindow(every: 5m, fn: sum, createEmpty: false)",
+          "datasource": "Lan_monitoring",
+          "query": "from(bucket: \"lan_monitoring\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"traffic\")\n  |> filter(fn: (r) => r.ip == \"${device_ip}\")\n  |> filter(fn: (r) => r.direction == \"out\")\n  |> filter(fn: (r) => r._field == \"bytes\")\n  |> aggregateWindow(every: 5m, fn: sum, createEmpty: false)",
           "refId": "A"
         }
       ],

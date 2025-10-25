@@ -32,9 +32,14 @@ class TrafficMonitor:
         self.stats = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'packets_in': 0, 'packets_out': 0})
         self.stats_lock = threading.Lock()
         
-        # Kumulatywne statystyki dla obliczania rate (NIGDY nie resetowane)
-        self.cumulative = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'start_time': time.time()})
-        self.cumulative_lock = threading.Lock()
+        # Statystyki z ostatnich N sekund dla obliczania rate
+        self.rate_window = 5  # okno czasowe w sekundach
+        self.rate_stats = defaultdict(lambda: {
+            'bytes_in': 0, 
+            'bytes_out': 0, 
+            'last_reset': time.time()
+        })
+        self.rate_lock = threading.Lock()
         
         # IP sieci lokalnej (do określenia kierunku ruchu)
         self.local_network = '192.168.1.0/24'
@@ -80,15 +85,15 @@ class TrafficMonitor:
                         self.stats[dst_ip]['bytes_in'] += packet_size
                         self.stats[dst_ip]['packets_in'] += 1
                 
-                # Aktualizuj cumulative (dla real-time rate) - NIGDY nie resetowane
-                with self.cumulative_lock:
+                # Aktualizuj rate_stats (dla real-time rate - okno 5s)
+                with self.rate_lock:
                     if src_local and not dst_local:
-                        self.cumulative[src_ip]['bytes_out'] += packet_size
+                        self.rate_stats[src_ip]['bytes_out'] += packet_size
                     elif not src_local and dst_local:
-                        self.cumulative[dst_ip]['bytes_in'] += packet_size
+                        self.rate_stats[dst_ip]['bytes_in'] += packet_size
                     elif src_local and dst_local:
-                        self.cumulative[src_ip]['bytes_out'] += packet_size
-                        self.cumulative[dst_ip]['bytes_in'] += packet_size
+                        self.rate_stats[src_ip]['bytes_out'] += packet_size
+                        self.rate_stats[dst_ip]['bytes_in'] += packet_size
                         
         except Exception as e:
             logger.error(f"Błąd przetwarzania pakietu: {e}")
@@ -158,20 +163,27 @@ class TrafficMonitor:
     def get_current_rates(self) -> Dict[str, Tuple[float, float]]:
         """
         Zwraca aktualne prędkości dla każdego urządzenia (KB/s)
-        Używa kumulatywnych statystyk które nigdy nie są resetowane
+        Używa statystyk z ostatnich 5 sekund
         
         Returns:
             {ip: (download_kbps, upload_kbps)}
         """
         current_time = time.time()
-        with self.cumulative_lock:
+        with self.rate_lock:
             rates = {}
-            for ip, data in self.cumulative.items():
-                # Oblicz czas od startu monitoringu tego IP
-                time_elapsed = current_time - data['start_time']
+            ips_to_reset = []
+            
+            for ip, data in self.rate_stats.items():
+                time_elapsed = current_time - data['last_reset']
                 
+                # Jeśli minęło więcej niż 2x rate_window, resetuj (brak ruchu)
+                if time_elapsed > (self.rate_window * 2):
+                    rates[ip] = (0.0, 0.0)
+                    ips_to_reset.append(ip)
+                    continue
+                
+                # Oblicz prędkość na podstawie czasu od ostatniego resetu
                 if time_elapsed > 0:
-                    # Przelicz na KB/s
                     download_kbps = (data['bytes_in'] / 1024) / time_elapsed
                     upload_kbps = (data['bytes_out'] / 1024) / time_elapsed
                 else:
@@ -179,6 +191,17 @@ class TrafficMonitor:
                     upload_kbps = 0
                 
                 rates[ip] = (download_kbps, upload_kbps)
+                
+                # Resetuj statystyki jeśli minęło rate_window sekund
+                if time_elapsed >= self.rate_window:
+                    data['bytes_in'] = 0
+                    data['bytes_out'] = 0
+                    data['last_reset'] = current_time
+            
+            # Usuń nieaktywne IP
+            for ip in ips_to_reset:
+                del self.rate_stats[ip]
+                
             return rates
 
 

@@ -40,6 +40,7 @@ class Config:
     # Grafana
     GRAFANA_URL = os.getenv('GRAFANA_URL', 'http://localhost:3000')
     GRAFANA_ENABLED = os.getenv('GRAFANA_ENABLED', 'false').lower() == 'true'
+    GRAFANA_DASHBOARD_UID = os.getenv('GRAFANA_DASHBOARD_UID', '')
     
     # Email
     MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')

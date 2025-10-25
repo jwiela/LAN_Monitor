@@ -58,6 +58,18 @@ def device_detail(device_id):
         .limit(100)\
         .all()
     
+    # Funkcja pomocnicza do formatowania rozmiaru (system dziesiętny SI - jak Grafana)
+    def format_bytes(bytes_value):
+        """Formatuje bajty do odpowiedniej jednostki (1000-based, SI)"""
+        if bytes_value < 1000:
+            return f"{bytes_value:.2f} B"
+        elif bytes_value < 1000 * 1000:
+            return f"{bytes_value / 1000:.2f} KB"
+        elif bytes_value < 1000 * 1000 * 1000:
+            return f"{bytes_value / 1000 / 1000:.2f} MB"
+        else:
+            return f"{bytes_value / 1000 / 1000 / 1000:.2f} GB"
+    
     # Pobierz bieżące prędkości (KB/s)
     rates = traffic_manager.traffic_monitor.get_current_rates()
     device_rate = rates.get(device.ip_address, (0, 0))
@@ -68,7 +80,8 @@ def device_detail(device_id):
     # Oblicz całkowity ruch z ostatnich 24h
     total_bytes_in = sum(a.bytes_received for a in activities)
     total_bytes_out = sum(a.bytes_sent for a in activities)
-    total_traffic = f"{(total_bytes_in + total_bytes_out) / 1024 / 1024:.2f} MB"
+    total_bytes = total_bytes_in + total_bytes_out
+    total_traffic = format_bytes(total_bytes)
     
     # Ostatnia aktywność
     if device.last_seen:
@@ -79,7 +92,7 @@ def device_detail(device_id):
     # Konfiguracja Grafana
     grafana_enabled = current_app.config.get('GRAFANA_ENABLED', False)
     grafana_url = current_app.config.get('GRAFANA_URL', 'http://localhost:3000')
-    dashboard_uid = 'device-traffic'  # UID dashboardu w Grafanie
+    dashboard_uid = current_app.config.get('GRAFANA_DASHBOARD_UID', 'device-traffic')
     
     return render_template('device_detail.html',
                          device=device,

@@ -86,10 +86,10 @@
         <!-- Wykresy Grafana -->
         {% if grafana_enabled %}
         <div class="grafana-section">
-            <h3>📈 Wykresy ruchu sieciowego (24h)</h3>
+            <h3>📈 Wykresy ruchu sieciowego (6h)</h3>
             <div class="grafana-embed">
                 <iframe
-                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=1&theme=light"
+                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=1&from=now-6h&to=now&refresh=30s"
                     width="100%"
                     height="400"
                     frameborder="0">
@@ -97,7 +97,7 @@
             </div>
             <div class="grafana-embed">
                 <iframe
-                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=2&theme=light"
+                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=2&from=now-6h&to=now&refresh=30s"
                     width="100%"
                     height="400"
                     frameborder="0">
@@ -109,37 +109,6 @@
             <p>⚠️ Grafana nie jest włączona. Aby zobaczyć wykresy, skonfiguruj InfluxDB i Grafanę w pliku .env</p>
         </div>
         {% endif %}
-
-        <!-- Historia aktywności -->
-        <div class="activity-section">
-            <h3>📜 Historia aktywności</h3>
-            <table class="activity-table">
-                <thead>
-                    <tr>
-                        <th>Czas</th>
-                        <th>Pobrane</th>
-                        <th>Wysłane</th>
-                        <th>Pakiety ↓</th>
-                        <th>Pakiety ↑</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for activity in activities %}
-                    <tr>
-                        <td>{{ activity.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                        <td>{{ (activity.bytes_received / 1024 / 1024) | round(2) }} MB</td>
-                        <td>{{ (activity.bytes_sent / 1024 / 1024) | round(2) }} MB</td>
-                        <td>{{ activity.packets_received }}</td>
-                        <td>{{ activity.packets_sent }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="no-data">Brak danych o aktywności</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
     </div>
 
     <script>
