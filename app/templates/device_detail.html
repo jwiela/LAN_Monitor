@@ -43,8 +43,8 @@
                     {% endif %}
                     <span class="detail-item">
                         <strong>Status:</strong> 
-                        <span class="status-badge {{ 'status-active' if device.status == 'online' else 'status-inactive' }}">
-                            {{ '🟢 Online' if device.status == 'online' else '🔴 Offline' }}
+                        <span class="status-badge {{ 'status-active' if device.is_online else 'status-inactive' }}">
+                            {{ '🟢 Online' if device.is_online else '🔴 Offline' }}
                         </span>
                     </span>
                 </div>

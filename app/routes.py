@@ -1,12 +1,15 @@
 """
 Blueprint głównych stron - dashboard, strona główna, szczegóły urządzenia
 """
-from flask import Blueprint, render_template, redirect, url_for, flash
+from flask import Blueprint, render_template, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app.models import Device, DeviceActivity, Alert
 from app import db
 from sqlalchemy import desc
 import threading
+import logging
+
+logger = logging.getLogger(__name__)
 
 main_bp = Blueprint('main', __name__)
 
@@ -52,11 +55,15 @@ def device_detail(device_id):
     
     device = Device.query.get_or_404(device_id)
     
+    logger.info(f"📱 Wyświetlanie szczegółów urządzenia: {device.ip_address}")
+    
     # Pobierz aktywność z ostatnich 24h
     activities = DeviceActivity.query.filter_by(device_id=device_id)\
         .order_by(desc(DeviceActivity.timestamp))\
         .limit(100)\
         .all()
+    
+    logger.info(f"📊 Znaleziono {len(activities)} rekordów aktywności dla urządzenia {device.ip_address}")
     
     # Funkcja pomocnicza do formatowania rozmiaru (system dziesiętny SI - jak Grafana)
     def format_bytes(bytes_value):
@@ -71,13 +78,53 @@ def device_detail(device_id):
             return f"{bytes_value / 1000 / 1000 / 1000:.2f} GB"
     
     # Pobierz bieżące prędkości (KB/s)
-    rates = traffic_manager.traffic_monitor.get_current_rates()
-    device_rate = rates.get(device.ip_address, (0, 0))
+    download_rate = "0.00 KB/s"
+    upload_rate = "0.00 KB/s"
     
-    download_rate = f"{device_rate[0]:.2f} KB/s"
-    upload_rate = f"{device_rate[1]:.2f} KB/s"
+    logger.debug(f"🔍 traffic_manager: {traffic_manager}")
+    logger.debug(f"🔍 traffic_monitor: {traffic_manager.traffic_monitor if traffic_manager else 'None'}")
+    logger.debug(f"🔍 monitor running: {traffic_manager.traffic_monitor.running if traffic_manager and traffic_manager.traffic_monitor else 'None'}")
     
-    # Oblicz całkowity ruch z ostatnich 24h
+    # Najpierw sprawdź czy traffic_monitor działa i jest zainicjalizowany
+    if traffic_manager and traffic_manager.traffic_monitor and traffic_manager.traffic_monitor.running:
+        try:
+            rates = traffic_manager.traffic_monitor.get_current_rates()
+            device_rate = rates.get(device.ip_address, (0, 0))
+            
+            logger.info(f"📈 Rates dla {device.ip_address}: ↓{device_rate[0]:.2f} KB/s ↑{device_rate[1]:.2f} KB/s")
+            
+            # Jeśli mamy aktywny ruch w ostatnich 5s
+            if device_rate[0] > 0 or device_rate[1] > 0:
+                download_rate = f"{device_rate[0]:.2f} KB/s"
+                upload_rate = f"{device_rate[1]:.2f} KB/s"
+                logger.info(f"✅ Używam aktywnych rates")
+            # Jeśli brak aktywnego ruchu, spróbuj obliczyć z ostatniej aktywności
+            elif activities:
+                latest = activities[0]
+                # Oblicz średnią prędkość z ostatniego okresu aktualizacji (60s)
+                update_interval = current_app.config.get('TRAFFIC_UPDATE_INTERVAL', 60)
+                if latest.bytes_received > 0 or latest.bytes_sent > 0:
+                    download_rate = f"{(latest.bytes_received / 1024 / update_interval):.2f} KB/s"
+                    upload_rate = f"{(latest.bytes_sent / 1024 / update_interval):.2f} KB/s"
+                    logger.info(f"✅ Używam ostatniej aktywności: ↓{latest.bytes_received} B ↑{latest.bytes_sent} B")
+        except Exception as e:
+            logger.error(f"❌ Błąd pobierania rates: {e}", exc_info=True)
+            # Fallback do ostatniej aktywności
+            if activities:
+                latest = activities[0]
+                update_interval = current_app.config.get('TRAFFIC_UPDATE_INTERVAL', 60)
+                download_rate = f"{(latest.bytes_received / 1024 / update_interval):.2f} KB/s"
+                upload_rate = f"{(latest.bytes_sent / 1024 / update_interval):.2f} KB/s"
+    elif activities:
+        # Traffic monitor nie działa, użyj danych z ostatniej aktywności
+        logger.warning(f"⚠ Traffic monitor nie działa, używam danych z ostatniej aktywności")
+        latest = activities[0]
+        update_interval = current_app.config.get('TRAFFIC_UPDATE_INTERVAL', 60)
+        download_rate = f"{(latest.bytes_received / 1024 / update_interval):.2f} KB/s"
+        upload_rate = f"{(latest.bytes_sent / 1024 / update_interval):.2f} KB/s"
+        logger.info(f"📊 Ostatnia aktywność: ↓{latest.bytes_received} B ↑{latest.bytes_sent} B z {latest.timestamp}")
+    else:
+        logger.warning(f"⚠ Brak danych ruchu dla urządzenia {device.ip_address}")    # Oblicz całkowity ruch z ostatnich 24h
     total_bytes_in = sum(a.bytes_received for a in activities)
     total_bytes_out = sum(a.bytes_sent for a in activities)
     total_bytes = total_bytes_in + total_bytes_out
@@ -104,6 +151,34 @@ def device_detail(device_id):
                          grafana_enabled=grafana_enabled,
                          grafana_url=grafana_url,
                          dashboard_uid=dashboard_uid)
+
+
+@main_bp.route('/mark-alerts-read', methods=['POST'])
+@login_required
+def mark_alerts_read():
+    """Oznacz wszystkie nieprzeczytane alerty jako przeczytane"""
+    try:
+        # Znajdź wszystkie nieprzeczytane alerty
+        unread_alerts = Alert.query.filter_by(is_read=False).all()
+        
+        # Oznacz jako przeczytane
+        for alert in unread_alerts:
+            alert.is_read = True
+        
+        db.session.commit()
+        
+        logger.info(f"✅ Oznaczono {len(unread_alerts)} alertów jako przeczytane")
+        
+        return jsonify({
+            'success': True,
+            'marked_count': len(unread_alerts)
+        })
+    except Exception as e:
+        logger.error(f"❌ Błąd oznaczania alertów: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @main_bp.route('/scan-network')

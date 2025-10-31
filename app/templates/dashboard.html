@@ -196,10 +196,17 @@
     </div>
 
     <script>
+        // Śledź czy dropdown alertów był otwarty
+        let alertsDropdownWasOpen = false;
+        
         // Obsługa dropdownów
         function toggleDropdown(id) {
             const dropdown = document.getElementById(id);
             const allDropdowns = document.querySelectorAll('.dropdown-menu');
+            
+            // Sprawdź czy dropdown alertów jest otwierany
+            const isAlertsDropdown = id === 'alerts-dropdown';
+            const wasOpen = dropdown.classList.contains('show');
             
             // Zamknij wszystkie inne dropdowny
             allDropdowns.forEach(d => {
@@ -210,16 +217,62 @@
             
             // Toggle aktualnego dropdowna
             dropdown.classList.toggle('show');
+            
+            // Jeśli dropdown alertów został zamknięty i był otwarty, oznacz jako przeczytane
+            if (isAlertsDropdown && wasOpen) {
+                markAlertsAsRead();
+            }
+            
+            // Zapamiętaj stan dla alertów
+            if (isAlertsDropdown) {
+                alertsDropdownWasOpen = dropdown.classList.contains('show');
+            }
         }
 
         // Zamknij dropdown po kliknięciu poza nim
         window.onclick = function(event) {
             if (!event.target.matches('.dropdown-toggle')) {
                 const dropdowns = document.querySelectorAll('.dropdown-menu');
+                const alertsDropdown = document.getElementById('alerts-dropdown');
+                const wasAlertsOpen = alertsDropdown && alertsDropdown.classList.contains('show');
+                
                 dropdowns.forEach(dropdown => {
                     dropdown.classList.remove('show');
                 });
+                
+                // Jeśli dropdown alertów był otwarty, oznacz jako przeczytane
+                if (wasAlertsOpen) {
+                    markAlertsAsRead();
+                }
             }
+        }
+        
+        // Funkcja do oznaczania alertów jako przeczytanych
+        function markAlertsAsRead() {
+            fetch('{{ url_for("main.mark_alerts_read") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.marked_count > 0) {
+                    console.log(`✅ Oznaczono ${data.marked_count} alertów jako przeczytane`);
+                    // Odśwież badge z liczbą alertów
+                    const badge = document.querySelector('.notification-badge');
+                    if (badge) {
+                        badge.style.display = 'none';
+                    }
+                    // Opcjonalnie: odśwież kartę z liczbą alertów
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Błąd oznaczania alertów:', error);
+            });
         }
     </script>
 </body>
