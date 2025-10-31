@@ -101,6 +101,45 @@ class InfluxDBWriter:
             logger.error(f"❌ Błąd zapisu do InfluxDB: {e}", exc_info=True)
             logger.error(f"   Bucket: {self.bucket}, Org: {self.org}")
     
+    def write_total_traffic(self, total_stats: Dict, timestamp: Optional[datetime] = None):
+        """
+        Zapisuje zsumowane statystyki ruchu ze wszystkich urządzeń
+        
+        Args:
+            total_stats: Słownik z kluczami: total_bytes_in, total_bytes_out, 
+                        total_packets_in, total_packets_out, device_count
+            timestamp: Timestamp danych (domyślnie: teraz)
+        """
+        if not self.write_api:
+            logger.warning("Brak połączenia z InfluxDB - pomijam zapis")
+            return
+        
+        if timestamp is None:
+            timestamp = datetime.utcnow()
+        
+        try:
+            # Point dla całkowitego ruchu przychodzącego
+            point_in = Point("total_traffic") \
+                .tag("direction", "in") \
+                .field("bytes", int(total_stats['total_bytes_in'])) \
+                .field("packets", int(total_stats['total_packets_in'])) \
+                .field("device_count", int(total_stats['device_count'])) \
+                .time(timestamp, WritePrecision.NS)
+            
+            # Point dla całkowitego ruchu wychodzącego
+            point_out = Point("total_traffic") \
+                .tag("direction", "out") \
+                .field("bytes", int(total_stats['total_bytes_out'])) \
+                .field("packets", int(total_stats['total_packets_out'])) \
+                .field("device_count", int(total_stats['device_count'])) \
+                .time(timestamp, WritePrecision.NS)
+            
+            self.write_api.write(bucket=self.bucket, org=self.org, record=[point_in, point_out])
+            logger.info(f"✅ Zapisano całkowite statystyki ruchu do InfluxDB")
+            
+        except Exception as e:
+            logger.error(f"❌ Błąd zapisu całkowitych statystyk: {e}", exc_info=True)
+    
     def write_device_metric(self, ip: str, metric_name: str, value: float, tags: Optional[Dict] = None):
         """
         Zapisuje pojedynczą metrykę dla urządzenia

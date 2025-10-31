@@ -168,6 +168,61 @@
             {% endif %}
         </div>
 
+        <!-- Całkowity ruch sieciowy -->
+        <div class="content-section">
+            <div class="section-header">
+                <h2>📊 Całkowity ruch sieciowy</h2>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card stat-info">
+                    <div class="stat-icon">⬇️</div>
+                    <div class="stat-info">
+                        <h3>{{ (total_stats.total_bytes_in / 1048576) | round(2) }} MB</h3>
+                        <p>Pobrano (aktualny okres)</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card stat-success">
+                    <div class="stat-icon">⬆️</div>
+                    <div class="stat-info">
+                        <h3>{{ (total_stats.total_bytes_out / 1048576) | round(2) }} MB</h3>
+                        <p>Wysłano (aktualny okres)</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card stat-warning">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-info">
+                        <h3>{{ total_stats.total_packets_in + total_stats.total_packets_out }}</h3>
+                        <p>Pakiety (razem)</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-info">
+                        <h3>{{ total_stats.device_count }}</h3>
+                        <p>Aktywne urządzenia</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Wykres z Grafany -->
+            <div style="margin-top: 20px;">
+                <iframe 
+                    src="http://localhost:3000/d-solo/adptrmz/traffic-all-devices?orgId=1&refresh=30s&theme=dark&panelId=3&from=now-6h&to=now" 
+                    width="100%" 
+                    height="400" 
+                    frameborder="0"
+                    style="border-radius: 8px;">
+                </iframe>
+                <p style="text-align: center; margin-top: 10px; color: #666;">
+                    📊 Wykres całkowitego ruchu w czasie rzeczywistym (ostatnie 6h)
+                </p>
+            </div>
+        </div>
+
         <!-- Alerty -->
         {% if recent_alerts %}
         <div class="content-section">

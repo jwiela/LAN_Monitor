@@ -77,17 +77,31 @@ class TrafficManager:
                     logger.debug("Brak statystyk ruchu")
                     continue
                 
-                # Loguj podsumowanie
+                # Oblicz i loguj podsumowanie
                 total_devices = len(stats)
                 total_bytes_in = sum(s['bytes_in'] for s in stats.values())
                 total_bytes_out = sum(s['bytes_out'] for s in stats.values())
+                total_packets_in = sum(s['packets_in'] for s in stats.values())
+                total_packets_out = sum(s['packets_out'] for s in stats.values())
+                
                 logger.info(f"📊 Statystyki: {total_devices} urządzeń, "
                            f"↓ {total_bytes_in/1024/1024:.2f} MB, "
                            f"↑ {total_bytes_out/1024/1024:.2f} MB")
                 
                 # Zapisz do InfluxDB
                 if self.influx_writer:
+                    # Zapisz statystyki per urządzenie
                     self.influx_writer.write_traffic_stats(stats)
+                    
+                    # Zapisz całkowite statystyki
+                    total_stats = {
+                        'total_bytes_in': total_bytes_in,
+                        'total_bytes_out': total_bytes_out,
+                        'total_packets_in': total_packets_in,
+                        'total_packets_out': total_packets_out,
+                        'device_count': total_devices
+                    }
+                    self.influx_writer.write_total_traffic(total_stats)
                 
                 # Zapisz do SQLite (DeviceActivity)
                 self._save_to_sqlite(stats)
@@ -176,6 +190,32 @@ class TrafficManager:
         """Pobiera bieżące statystyki dla konkretnego urządzenia"""
         stats = self.traffic_monitor.get_stats(reset=False)
         return stats.get(ip)
+    
+    def get_total_stats(self) -> dict:
+        """Pobiera zsumowane statystyki ze wszystkich urządzeń"""
+        stats = self.traffic_monitor.get_stats(reset=False)
+        
+        if not stats:
+            return {
+                'total_bytes_in': 0,
+                'total_bytes_out': 0,
+                'total_packets_in': 0,
+                'total_packets_out': 0,
+                'device_count': 0
+            }
+        
+        total_bytes_in = sum(s['bytes_in'] for s in stats.values())
+        total_bytes_out = sum(s['bytes_out'] for s in stats.values())
+        total_packets_in = sum(s['packets_in'] for s in stats.values())
+        total_packets_out = sum(s['packets_out'] for s in stats.values())
+        
+        return {
+            'total_bytes_in': total_bytes_in,
+            'total_bytes_out': total_bytes_out,
+            'total_packets_in': total_packets_in,
+            'total_packets_out': total_packets_out,
+            'device_count': len(stats)
+        }
 
 
 # Singleton instance

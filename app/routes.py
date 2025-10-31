@@ -26,6 +26,8 @@ def index():
 @login_required
 def dashboard():
     """Dashboard z listą urządzeń w sieci"""
+    from core.traffic_manager import traffic_manager
+    
     # Pobierz wszystkie urządzenia
     devices = Device.query.order_by(desc(Device.last_seen)).all()
     
@@ -37,12 +39,16 @@ def dashboard():
     # Ostatnie alerty
     recent_alerts = Alert.query.filter_by(is_read=False).order_by(desc(Alert.created_at)).limit(5).all()
     
+    # Pobierz całkowite statystyki ruchu
+    total_stats = traffic_manager.get_total_stats()
+    
     return render_template('dashboard.html',
                          devices=devices,
                          total_devices=total_devices,
                          online_devices=online_devices,
                          new_devices=new_devices,
-                         recent_alerts=recent_alerts)
+                         recent_alerts=recent_alerts,
+                         total_stats=total_stats)
 
 
 @main_bp.route('/device/<int:device_id>')
