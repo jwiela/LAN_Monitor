@@ -7,20 +7,24 @@ import re
 from datetime import datetime
 from app import db
 from app.models import Device, Alert
+from core.email_manager import EmailManager
+from config import Config
 
 
 class NetworkScanner:
     """Skaner sieci lokalnej wykorzystujący nmap"""
     
-    def __init__(self, network_range='192.168.1.0/24'):
+    def __init__(self, network_range='192.168.1.0/24', email_manager=None):
         """
         Inicjalizacja skanera
         
         Args:
             network_range: Zakres sieci do skanowania (CIDR notation)
+            email_manager: Instancja EmailManager do wysyłania powiadomień
         """
         self.network_range = network_range
         self.nm = nmap.PortScanner()
+        self.email_manager = email_manager or EmailManager(Config)
     
     def scan_network(self):
         """
@@ -182,9 +186,30 @@ class NetworkScanner:
                     alert_type='new_device',
                     severity='info',
                     message=f'Wykryto nowe urządzenie w sieci: {device_identifier} ({ip})',
-                    device=device
+                    device=device,
+                    is_sent=False
                 )
                 db.session.add(alert)
+                
+                # Wyślij powiadomienie email do zainteresowanych odbiorców
+                if self.email_manager and self.email_manager.enabled:
+                    device_info = {
+                        'ip_address': ip,
+                        'mac_address': mac,
+                        'hostname': info.get('hostname'),
+                        'vendor': info.get('vendor'),
+                        'first_seen': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    }
+                    
+                    result = self.email_manager.send_alert_to_recipients(
+                        alert_type='new_device',
+                        message=f'Wykryto nowe urządzenie w sieci: {device_identifier}',
+                        device_info=device_info
+                    )
+                    
+                    if result['success_count'] > 0:
+                        alert.is_sent = True
+                        print(f"  📧 Wysłano powiadomienie email o nowym urządzeniu do {result['success_count']} odbiorców")
         
         try:
             db.session.commit()

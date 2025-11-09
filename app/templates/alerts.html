@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerty - LAN Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dashboard">
+    <!-- Navbar -->
+    {% include 'navbar.html' %}
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>🔔 Alerty - {{ period_name }}</h1>
+        <div class="header-actions">
+            <span class="badge badge-new">{{ unread_count }} nieprzeczytanych</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Filter buttons -->
+        <div class="filter-buttons" style="margin-bottom: 30px;">
+            <a href="{{ url_for('main.alerts_page', period=1) }}" 
+               class="btn-filter {% if period == 1 %}active{% endif %}">
+                Ostatnia godzina
+            </a>
+            <a href="{{ url_for('main.alerts_page', period=24) }}" 
+               class="btn-filter {% if period == 24 %}active{% endif %}">
+                Ostatnie 24h
+            </a>
+            <a href="{{ url_for('main.alerts_page', period=168) }}" 
+               class="btn-filter {% if period == 168 %}active{% endif %}">
+                Ostatni tydzień
+            </a>
+            <a href="{{ url_for('main.alerts_page', period=-1) }}" 
+               class="btn-filter {% if period == -1 %}active{% endif %}">
+                Wszystkie
+            </a>
+        </div>
+
+        <!-- Lista alertów -->
+        <div class="content-section">
+            {% if alerts %}
+                <div class="alerts-list">
+                    {% for alert in alerts %}
+                        <div class="alert-item {% if not alert.is_read %}alert-unread{% endif %}">
+                            <div class="alert-icon">
+                                {% if alert.alert_type == 'new_device' %}
+                                    🆕
+                                {% elif alert.alert_type == 'device_offline' %}
+                                    ⚠️
+                                {% elif alert.alert_type == 'unusual_traffic' %}
+                                    📊
+                                {% else %}
+                                    🔔
+                                {% endif %}
+                            </div>
+                            <div class="alert-content">
+                                <strong>{{ alert.message }}</strong>
+                                <p>
+                                    {% if alert.device %}
+                                        Urządzenie: {{ alert.device.hostname or 'Nieznane' }} ({{ alert.device.ip_address }})
+                                    {% endif %}
+                                </p>
+                                <small>{{ alert.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                                {% if alert.is_sent %}
+                                    <span class="badge badge-info" style="margin-left: 10px;">📧 Wysłano email</span>
+                                {% endif %}
+                            </div>
+                            <div class="alert-actions">
+                                {% if not alert.is_read %}
+                                    <button onclick="markAsRead({{ alert.id }})" class="btn-link-small">
+                                        Oznacz jako przeczytane
+                                    </button>
+                                {% else %}
+                                    <span style="color: #10b981; font-size: 12px;">✓ Przeczytano</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p style="text-align: center; color: #999; padding: 60px 20px;">
+                    Brak alertów w tym okresie
+                </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function markAsRead(alertId) {
+            fetch(`/alerts/${alertId}/mark-read`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>

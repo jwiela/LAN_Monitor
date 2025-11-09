@@ -102,6 +102,38 @@ class Alert(db.Model):
         return f'<Alert {self.alert_type} - {self.severity}>'
 
 
+class EmailRecipient(db.Model):
+    """Model odbiorcy powiadomień email"""
+    __tablename__ = 'email_recipients'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    name = db.Column(db.String(255), nullable=True)  # Opcjonalna nazwa odbiorcy
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # Typy alertów, które mają być wysyłane (JSON lub osobne kolumny boolean)
+    notify_new_device = db.Column(db.Boolean, default=True)
+    notify_device_offline = db.Column(db.Boolean, default=True)
+    notify_device_online = db.Column(db.Boolean, default=True)
+    notify_unusual_traffic = db.Column(db.Boolean, default=False)
+    notify_high_traffic = db.Column(db.Boolean, default=False)
+    
+    def __repr__(self):
+        return f'<EmailRecipient {self.email}>'
+    
+    def should_notify(self, alert_type):
+        """Sprawdź czy odbiorca powinien otrzymać powiadomienie o danym typie alertu"""
+        mapping = {
+            'new_device': self.notify_new_device,
+            'device_offline': self.notify_device_offline,
+            'device_online': self.notify_device_online,
+            'unusual_traffic': self.notify_unusual_traffic,
+            'high_traffic': self.notify_high_traffic,
+        }
+        return mapping.get(alert_type, False)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     """Callback do ładowania użytkownika dla Flask-Login"""

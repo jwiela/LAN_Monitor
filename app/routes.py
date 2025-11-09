@@ -25,11 +25,11 @@ def index():
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
-    """Dashboard z listą urządzeń w sieci"""
+    """Dashboard z listą AKTYWNYCH urządzeń w sieci"""
     from core.traffic_manager import traffic_manager
     
-    # Pobierz wszystkie urządzenia
-    devices = Device.query.order_by(desc(Device.last_seen)).all()
+    # Pobierz tylko AKTYWNE urządzenia
+    devices = Device.query.filter_by(is_online=True).order_by(desc(Device.last_seen)).all()
     
     # Statystyki
     total_devices = Device.query.count()
@@ -49,6 +49,141 @@ def dashboard():
                          new_devices=new_devices,
                          recent_alerts=recent_alerts,
                          total_stats=total_stats)
+
+
+@main_bp.route('/devices/all')
+@login_required
+def all_devices():
+    """Strona ze wszystkimi urządzeniami (aktywne i nieaktywne)"""
+    # Pobierz wszystkie urządzenia pogrupowane
+    active_devices = Device.query.filter_by(is_online=True).order_by(desc(Device.last_seen)).all()
+    inactive_devices = Device.query.filter_by(is_online=False).order_by(desc(Device.last_seen)).all()
+    
+    # Statystyki
+    total_devices = Device.query.count()
+    online_devices = len(active_devices)
+    offline_devices = len(inactive_devices)
+    
+    return render_template('all_devices.html',
+                         active_devices=active_devices,
+                         inactive_devices=inactive_devices,
+                         total_devices=total_devices,
+                         online_devices=online_devices,
+                         offline_devices=offline_devices)
+
+
+@main_bp.route('/alerts')
+@main_bp.route('/alerts/<int:period>')
+@login_required
+def alerts_page(period=1):
+    """
+    Strona z alertami
+    period: -1=wszystkie, 1=ostatnia godzina, 24=ostatnie 24h, 168=tydzień (7*24h)
+    """
+    from datetime import datetime, timedelta
+    
+    query = Alert.query
+    
+    if period > 0:
+        # Filtruj według czasu
+        time_threshold = datetime.now() - timedelta(hours=period)
+        query = query.filter(Alert.created_at >= time_threshold)
+    
+    # Pobierz alerty
+    alerts = query.order_by(desc(Alert.created_at)).all()
+    
+    # Zlicz nieprzeczytane
+    unread_count = Alert.query.filter_by(is_read=False).count()
+    
+    # Mapowanie okresów na nazwy
+    period_names = {
+        1: 'Ostatnia godzina',
+        24: 'Ostatnie 24 godziny',
+        168: 'Ostatni tydzień',
+        -1: 'Wszystkie alerty'
+    }
+    
+    period_name = period_names.get(period, 'Wszystkie alerty')
+    
+    return render_template('alerts.html',
+                         alerts=alerts,
+                         unread_count=unread_count,
+                         period=period,
+                         period_name=period_name)
+
+
+@main_bp.route('/alerts/<int:alert_id>/mark-read', methods=['POST'])
+@login_required
+def mark_alert_read(alert_id):
+    """Oznacz alert jako przeczytany"""
+    alert = Alert.query.get_or_404(alert_id)
+    alert.is_read = True
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+
+@main_bp.route('/settings/email')
+@login_required
+def email_settings():
+    """Strona ustawień powiadomień email i zarządzania odbiorcami"""
+    from core.email_manager import EmailManager
+    from config import Config
+    from app.models import EmailRecipient
+    
+    email_manager = EmailManager(Config)
+    
+    # Pobierz konfigurację
+    config_status = {
+        'enabled': email_manager.enabled,
+        'server': Config.MAIL_SERVER,
+        'port': Config.MAIL_PORT,
+        'username': Config.MAIL_USERNAME,
+        'alert_email': Config.ALERT_EMAIL,
+        'use_tls': Config.MAIL_USE_TLS
+    }
+    
+    # Pobierz statystyki alertów
+    total_alerts = Alert.query.count()
+    sent_alerts = Alert.query.filter_by(is_sent=True).count()
+    pending_alerts = Alert.query.filter_by(is_sent=False).count()
+    
+    # Pobierz listę odbiorców
+    recipients = EmailRecipient.query.order_by(EmailRecipient.created_at.desc()).all()
+    
+    return render_template('email_settings.html',
+                         config=config_status,
+                         total_alerts=total_alerts,
+                         sent_alerts=sent_alerts,
+                         pending_alerts=pending_alerts,
+                         recipients=recipients)
+
+
+@main_bp.route('/settings/email/test', methods=['POST'])
+@login_required
+def test_email():
+    """Testuj połączenie email"""
+    from core.email_manager import EmailManager
+    from config import Config
+    
+    email_manager = EmailManager(Config)
+    
+    # Test połączenia
+    if email_manager.test_connection():
+        # Wyślij testową wiadomość
+        success = email_manager.send_email(
+            subject='🧪 Test powiadomień LAN Monitor',
+            body='To jest testowa wiadomość z systemu LAN Monitor. Jeśli widzisz tę wiadomość, konfiguracja email działa poprawnie!',
+            html=False
+        )
+        
+        if success:
+            flash('Test email zakończony sukcesem! Sprawdź swoją skrzynkę pocztową.', 'success')
+        else:
+            flash('Połączenie działa, ale nie udało się wysłać wiadomości.', 'warning')
+    else:
+        flash('Test połączenia email nieudany. Sprawdź konfigurację SMTP.', 'error')
+    
+    return redirect(url_for('main.email_settings'))
 
 
 @main_bp.route('/device/<int:device_id>')
@@ -272,3 +407,157 @@ def device_stats_api(device_id):
         }
     
     return jsonify(response)
+
+
+@main_bp.route('/settings/email/recipients/add', methods=['POST'])
+@login_required
+def add_email_recipient():
+    """Dodaj nowego odbiorcę powiadomień email"""
+    from flask import request
+    from app.models import EmailRecipient
+    from core.email_manager import EmailManager
+    from config import Config
+    
+    try:
+        email = request.form.get('email', '').strip()
+        name = request.form.get('name', '').strip() or None
+        
+        # Walidacja
+        if not email:
+            flash('Adres email jest wymagany!', 'error')
+            return redirect(url_for('main.email_settings'))
+        
+        # Sprawdź czy już istnieje
+        existing = EmailRecipient.query.filter_by(email=email).first()
+        if existing:
+            flash(f'Odbiorca {email} już istnieje w bazie!', 'warning')
+            return redirect(url_for('main.email_settings'))
+        
+        # Pobierz preferencje powiadomień
+        notify_new_device = request.form.get('notify_new_device') == 'on'
+        notify_device_offline = request.form.get('notify_device_offline') == 'on'
+        notify_device_online = request.form.get('notify_device_online') == 'on'
+        notify_unusual_traffic = request.form.get('notify_unusual_traffic') == 'on'
+        notify_high_traffic = request.form.get('notify_high_traffic') == 'on'
+        
+        # Utwórz nowego odbiorcę
+        recipient = EmailRecipient(
+            email=email,
+            name=name,
+            notify_new_device=notify_new_device,
+            notify_device_offline=notify_device_offline,
+            notify_device_online=notify_device_online,
+            notify_unusual_traffic=notify_unusual_traffic,
+            notify_high_traffic=notify_high_traffic
+        )
+        
+        db.session.add(recipient)
+        db.session.commit()
+        
+        # Wyślij email powitalny
+        email_manager = EmailManager(Config)
+        print(f"📧 [DEBUG] Próba wysłania emaila powitalnego do {email}")
+        print(f"📧 [DEBUG] email_manager.enabled={email_manager.enabled}")
+        logger.info(f"📧 Próba wysłania emaila powitalnego do {email}, email_manager.enabled={email_manager.enabled}")
+        
+        if email_manager.enabled:
+            try:
+                print(f"📧 [DEBUG] Wywołuję send_welcome_email...")
+                welcome_sent = email_manager.send_welcome_email(email, name)
+                print(f"📧 [DEBUG] Wynik send_welcome_email: {welcome_sent}")
+                logger.info(f"📧 Wynik send_welcome_email: {welcome_sent}")
+                
+                if welcome_sent:
+                    flash(f'✅ Dodano odbiorcę {email} i wysłano email powitalny!', 'success')
+                else:
+                    flash(f'✅ Dodano odbiorcę {email}, ale nie udało się wysłać emaila powitalnego.', 'warning')
+            except Exception as email_error:
+                print(f"❌ [DEBUG] Błąd wysyłania emaila powitalnego: {email_error}")
+                logger.error(f"❌ Błąd wysyłania emaila powitalnego: {email_error}")
+                flash(f'✅ Dodano odbiorcę {email}, ale wystąpił błąd przy wysyłaniu emaila: {str(email_error)}', 'warning')
+        else:
+            print(f"⚠️ [DEBUG] Email manager wyłączony")
+            logger.warning(f"⚠️ Email manager wyłączony, nie wysłano emaila powitalnego")
+            flash(f'✅ Dodano odbiorcę {email} (email manager wyłączony - nie wysłano powitalnego).', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Błąd dodawania odbiorcy: {e}")
+        flash(f'Błąd podczas dodawania odbiorcy: {str(e)}', 'error')
+    
+    return redirect(url_for('main.email_settings'))
+
+
+@main_bp.route('/settings/email/recipients/<int:recipient_id>/edit', methods=['POST'])
+@login_required
+def edit_email_recipient(recipient_id):
+    """Edytuj preferencje odbiorcy"""
+    from flask import request
+    from app.models import EmailRecipient
+    
+    try:
+        recipient = EmailRecipient.query.get_or_404(recipient_id)
+        
+        # Aktualizuj nazwę
+        recipient.name = request.form.get('name', '').strip() or None
+        
+        # Aktualizuj preferencje
+        recipient.notify_new_device = request.form.get('notify_new_device') == 'on'
+        recipient.notify_device_offline = request.form.get('notify_device_offline') == 'on'
+        recipient.notify_device_online = request.form.get('notify_device_online') == 'on'
+        recipient.notify_unusual_traffic = request.form.get('notify_unusual_traffic') == 'on'
+        recipient.notify_high_traffic = request.form.get('notify_high_traffic') == 'on'
+        
+        db.session.commit()
+        flash(f'✅ Zaktualizowano preferencje dla {recipient.email}', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Błąd edycji odbiorcy: {e}")
+        flash(f'Błąd podczas edycji odbiorcy: {str(e)}', 'error')
+    
+    return redirect(url_for('main.email_settings'))
+
+
+@main_bp.route('/settings/email/recipients/<int:recipient_id>/toggle', methods=['POST'])
+@login_required
+def toggle_email_recipient(recipient_id):
+    """Aktywuj/dezaktywuj odbiorcę"""
+    from app.models import EmailRecipient
+    
+    try:
+        recipient = EmailRecipient.query.get_or_404(recipient_id)
+        recipient.is_active = not recipient.is_active
+        db.session.commit()
+        
+        status = 'aktywowany' if recipient.is_active else 'dezaktywowany'
+        flash(f'✅ Odbiorca {recipient.email} został {status}', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Błąd przełączania odbiorcy: {e}")
+        flash(f'Błąd: {str(e)}', 'error')
+    
+    return redirect(url_for('main.email_settings'))
+
+
+@main_bp.route('/settings/email/recipients/<int:recipient_id>/delete', methods=['POST'])
+@login_required
+def delete_email_recipient(recipient_id):
+    """Usuń odbiorcę"""
+    from app.models import EmailRecipient
+    
+    try:
+        recipient = EmailRecipient.query.get_or_404(recipient_id)
+        email = recipient.email
+        db.session.delete(recipient)
+        db.session.commit()
+        
+        flash(f'✅ Usunięto odbiorcę {email}', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Błąd usuwania odbiorcy: {e}")
+        flash(f'Błąd: {str(e)}', 'error')
+    
+    return redirect(url_for('main.email_settings'))

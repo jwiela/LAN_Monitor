@@ -7,66 +7,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="dashboard">
-    <!-- Navbar -->
-    <nav class="navbar">
-        <a href="{{ url_for('main.dashboard') }}" class="navbar-brand">🌐 LAN Monitor</a>
-        <div class="navbar-menu">
-            <!-- Dropdown alertów -->
-            <div class="dropdown">
-                <button class="dropdown-toggle" onclick="toggleDropdown('alerts-dropdown')">
-                    �
-                    {% if recent_alerts|length > 0 %}
-                        <span class="notification-badge">{{ recent_alerts|length }}</span>
-                    {% endif %}
-                </button>
-                <div id="alerts-dropdown" class="dropdown-menu">
-                    <div class="dropdown-header">
-                        <strong>Alerty</strong>
-                    </div>
-                    {% if recent_alerts %}
-                        {% for alert in recent_alerts[:5] %}
-                            <div class="dropdown-item alert-dropdown-item">
-                                <div class="alert-dropdown-icon">
-                                    {% if alert.severity == 'critical' %}⚠️
-                                    {% elif alert.severity == 'warning' %}⚡
-                                    {% else %}ℹ️{% endif %}
-                                </div>
-                                <div class="alert-dropdown-content">
-                                    <strong>{{ alert.alert_type }}</strong>
-                                    <p>{{ alert.message[:50] }}...</p>
-                                    <small>{{ alert.created_at.strftime('%H:%M') }}</small>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="dropdown-item-empty">
-                            Brak nowych alertów
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <!-- Dropdown użytkownika -->
-            <div class="dropdown">
-                <button class="dropdown-toggle user-dropdown-toggle" onclick="toggleDropdown('user-dropdown')">
-                    �👤 {{ current_user.username }}
-                    <span class="dropdown-arrow">▼</span>
-                </button>
-                <div id="user-dropdown" class="dropdown-menu dropdown-menu-right">
-                    <div class="dropdown-header">
-                        <strong>{{ current_user.username }}</strong>
-                    </div>
-                    <a href="{{ url_for('auth.change_password') }}" class="dropdown-item">
-                        🔑 Zmień hasło
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a href="{{ url_for('auth.logout') }}" class="dropdown-item">
-                        🚪 Wyloguj
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    {% include 'navbar.html' %}
+    
+    <div class="page-header">
+        <h1>🏠 Dashboard - Aktywne urządzenia</h1>
+    </div>
 
     <!-- Komunikaty Flash -->
     <div class="container">
@@ -249,86 +194,5 @@
         </div>
         {% endif %}
     </div>
-
-    <script>
-        // Śledź czy dropdown alertów był otwarty
-        let alertsDropdownWasOpen = false;
-        
-        // Obsługa dropdownów
-        function toggleDropdown(id) {
-            const dropdown = document.getElementById(id);
-            const allDropdowns = document.querySelectorAll('.dropdown-menu');
-            
-            // Sprawdź czy dropdown alertów jest otwierany
-            const isAlertsDropdown = id === 'alerts-dropdown';
-            const wasOpen = dropdown.classList.contains('show');
-            
-            // Zamknij wszystkie inne dropdowny
-            allDropdowns.forEach(d => {
-                if (d.id !== id) {
-                    d.classList.remove('show');
-                }
-            });
-            
-            // Toggle aktualnego dropdowna
-            dropdown.classList.toggle('show');
-            
-            // Jeśli dropdown alertów został zamknięty i był otwarty, oznacz jako przeczytane
-            if (isAlertsDropdown && wasOpen) {
-                markAlertsAsRead();
-            }
-            
-            // Zapamiętaj stan dla alertów
-            if (isAlertsDropdown) {
-                alertsDropdownWasOpen = dropdown.classList.contains('show');
-            }
-        }
-
-        // Zamknij dropdown po kliknięciu poza nim
-        window.onclick = function(event) {
-            if (!event.target.matches('.dropdown-toggle')) {
-                const dropdowns = document.querySelectorAll('.dropdown-menu');
-                const alertsDropdown = document.getElementById('alerts-dropdown');
-                const wasAlertsOpen = alertsDropdown && alertsDropdown.classList.contains('show');
-                
-                dropdowns.forEach(dropdown => {
-                    dropdown.classList.remove('show');
-                });
-                
-                // Jeśli dropdown alertów był otwarty, oznacz jako przeczytane
-                if (wasAlertsOpen) {
-                    markAlertsAsRead();
-                }
-            }
-        }
-        
-        // Funkcja do oznaczania alertów jako przeczytanych
-        function markAlertsAsRead() {
-            fetch('{{ url_for("main.mark_alerts_read") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.marked_count > 0) {
-                    console.log(`✅ Oznaczono ${data.marked_count} alertów jako przeczytane`);
-                    // Odśwież badge z liczbą alertów
-                    const badge = document.querySelector('.notification-badge');
-                    if (badge) {
-                        badge.style.display = 'none';
-                    }
-                    // Opcjonalnie: odśwież kartę z liczbą alertów
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                }
-            })
-            .catch(error => {
-                console.error('❌ Błąd oznaczania alertów:', error);
-            });
-        }
-    </script>
 </body>
 </html>

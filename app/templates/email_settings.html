@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ustawienia Email - LAN Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .recipients-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .recipients-table th {
+            background: #f7fafc;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .recipients-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .recipients-table tbody tr:hover {
+            background: #f7fafc;
+        }
+        
+        .notification-checks {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .notification-checks label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .checkbox-group {
+            margin: 20px 0;
+        }
+        
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        
+        .checkbox-group label:hover {
+            background: #f7fafc;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .recipient-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-icon {
+            padding: 6px 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body class="dashboard">
+    {% include 'navbar.html' %}
+
+    <div class="page-header">
+        <h1>📧 Powiadomienia Email</h1>
+        <div class="header-actions">
+            <button onclick="openAddRecipientModal()" class="btn btn-primary">
+                ➕ Dodaj odbiorcę
+            </button>
+            <form method="POST" action="{{ url_for('main.test_email') }}" style="display: inline;">
+                <button type="submit" class="btn btn-success">
+                    🧪 Testuj połączenie
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Status SMTP -->
+        <div class="content-section">
+            <h2>⚙️ Status konfiguracji SMTP</h2>
+            <div class="status-grid">
+                <div class="status-item {% if config.enabled %}enabled{% else %}disabled{% endif %}">
+                    <label>Status:</label>
+                    <span>{% if config.enabled %}✅ Włączone{% else %}❌ Wyłączone{% endif %}</span>
+                </div>
+                <div class="status-item">
+                    <label>Serwer:</label>
+                    <span>{{ config.server }}:{{ config.port }}</span>
+                </div>
+                <div class="status-item">
+                    <label>Użytkownik:</label>
+                    <span>{{ config.username }}</span>
+                </div>
+                <div class="status-item">
+                    <label>TLS:</label>
+                    <span>{% if config.use_tls %}✓ Tak{% else %}✗ Nie{% endif %}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statystyki -->
+        <div class="stats-grid" style="margin-top: 30px;">
+            <div class="stat-card">
+                <div class="stat-icon">📨</div>
+                <div class="stat-info">
+                    <h3>{{ total_alerts }}</h3>
+                    <p>Wszystkie alerty</p>
+                </div>
+            </div>
+            <div class="stat-card stat-success">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <h3>{{ sent_alerts }}</h3>
+                    <p>Wysłane emaile</p>
+                </div>
+            </div>
+            <div class="stat-card stat-warning">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-info">
+                    <h3>{{ pending_alerts }}</h3>
+                    <p>Oczekujące</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista odbiorców -->
+        <div class="content-section" style="margin-top: 30px;">
+            <h2>👥 Odbiorcy powiadomień ({{ recipients|length }})</h2>
+            
+            {% if recipients %}
+                <table class="recipients-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Nazwa</th>
+                            <th>Powiadomienia</th>
+                            <th>Status</th>
+                            <th>Data dodania</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for recipient in recipients %}
+                        <tr>
+                            <td><strong>{{ recipient.email }}</strong></td>
+                            <td>{{ recipient.name or '—' }}</td>
+                            <td>
+                                <div class="notification-checks">
+                                    {% if recipient.notify_new_device %}🆕{% endif %}
+                                    {% if recipient.notify_device_offline %}⚠️{% endif %}
+                                    {% if recipient.notify_device_online %}✅{% endif %}
+                                    {% if recipient.notify_unusual_traffic %}📊{% endif %}
+                                    {% if recipient.notify_high_traffic %}🔥{% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if recipient.is_active %}
+                                    <span class="badge badge-success">Aktywny</span>
+                                {% else %}
+                                    <span class="badge badge-danger">Nieaktywny</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ recipient.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <div class="recipient-actions">
+                                    <button onclick="openEditModal({{ recipient.id }}, '{{ recipient.email }}', '{{ recipient.name or '' }}', {{ recipient.notify_new_device|tojson }}, {{ recipient.notify_device_offline|tojson }}, {{ recipient.notify_device_online|tojson }}, {{ recipient.notify_unusual_traffic|tojson }}, {{ recipient.notify_high_traffic|tojson }})" 
+                                            class="btn btn-secondary btn-icon">✏️</button>
+                                    <form method="POST" action="{{ url_for('main.toggle_email_recipient', recipient_id=recipient.id) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-secondary btn-icon">
+                                            {% if recipient.is_active %}⏸️{% else %}▶️{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('main.delete_email_recipient', recipient_id=recipient.id) }}" 
+                                          onsubmit="return confirm('Czy na pewno chcesz usunąć odbiorcę {{ recipient.email }}?')" style="display: inline;">
+                                        <button type="submit" class="btn btn-danger btn-icon">🗑️</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <h3>Brak odbiorców</h3>
+                    <p>Dodaj pierwszego odbiorcę powiadomień email</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal dodawania odbiorcy -->
+    <div id="addRecipientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Dodaj odbiorcę</h2>
+                <button class="modal-close" onclick="closeAddRecipientModal()">×</button>
+            </div>
+            <form method="POST" action="{{ url_for('main.add_email_recipient') }}">
+                <div class="form-group">
+                    <label for="email">Adres email *</label>
+                    <input type="email" id="email" name="email" required placeholder="np. jan.kowalski@example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label for="name">Nazwa (opcjonalnie)</label>
+                    <input type="text" id="name" name="name" placeholder="np. Jan Kowalski">
+                </div>
+                
+                <div class="checkbox-group">
+                    <h3>Typy powiadomień:</h3>
+                    <label>
+                        <input type="checkbox" name="notify_new_device" checked>
+                        <span>🆕 Nowe urządzenia w sieci</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_device_offline" checked>
+                        <span>⚠️ Urządzenie offline</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_device_online" checked>
+                        <span>✅ Urządzenie ponownie online</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_unusual_traffic">
+                        <span>📊 Nietypowy ruch sieciowy</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_high_traffic">
+                        <span>🔥 Wysoki ruch sieciowy</span>
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddRecipientModal()">Anuluj</button>
+                    <button type="submit" class="btn btn-primary">Dodaj i wyślij email powitalny</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal edycji odbiorcy -->
+    <div id="editRecipientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✏️ Edytuj odbiorcę</h2>
+                <button class="modal-close" onclick="closeEditModal()">×</button>
+            </div>
+            <form id="editRecipientForm" method="POST">
+                <div class="form-group">
+                    <label>Adres email</label>
+                    <input type="text" id="edit_email" disabled>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_name">Nazwa (opcjonalnie)</label>
+                    <input type="text" id="edit_name" name="name">
+                </div>
+                
+                <div class="checkbox-group">
+                    <h3>Typy powiadomień:</h3>
+                    <label>
+                        <input type="checkbox" name="notify_new_device" id="edit_notify_new_device">
+                        <span>🆕 Nowe urządzenia w sieci</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_device_offline" id="edit_notify_device_offline">
+                        <span>⚠️ Urządzenie offline</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_device_online" id="edit_notify_device_online">
+                        <span>✅ Urządzenie ponownie online</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_unusual_traffic" id="edit_notify_unusual_traffic">
+                        <span>📊 Nietypowy ruch sieciowy</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_high_traffic" id="edit_notify_high_traffic">
+                        <span>🔥 Wysoki ruch sieciowy</span>
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Anuluj</button>
+                    <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openAddRecipientModal() {
+            document.getElementById('addRecipientModal').classList.add('active');
+        }
+        
+        function closeAddRecipientModal() {
+            document.getElementById('addRecipientModal').classList.remove('active');
+        }
+        
+        function openEditModal(id, email, name, new_device, offline, online, unusual, high) {
+            const form = document.getElementById('editRecipientForm');
+            form.action = `/settings/email/recipients/${id}/edit`;
+            
+            document.getElementById('edit_email').value = email;
+            document.getElementById('edit_name').value = name;
+            document.getElementById('edit_notify_new_device').checked = new_device;
+            document.getElementById('edit_notify_device_offline').checked = offline;
+            document.getElementById('edit_notify_device_online').checked = online;
+            document.getElementById('edit_notify_unusual_traffic').checked = unusual;
+            document.getElementById('edit_notify_high_traffic').checked = high;
+            
+            document.getElementById('editRecipientModal').classList.add('active');
+        }
+        
+        function closeEditModal() {
+            document.getElementById('editRecipientModal').classList.remove('active');
+        }
+        
+        // Zamknij modal po kliknięciu poza nim
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

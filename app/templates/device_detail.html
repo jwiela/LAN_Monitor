@@ -7,27 +7,14 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-brand">
-                <h1>🌐 LAN Monitor</h1>
-            </div>
-            <div class="nav-menu">
-                <a href="{{ url_for('main.dashboard') }}">← Powrót do dashboardu</a>
-                
-                <div class="dropdown">
-                    <button class="dropdown-toggle" onclick="toggleDropdown('userDropdown')">
-                        👤 {{ current_user.username }}
-                    </button>
-                    <div id="userDropdown" class="dropdown-menu">
-                        <a href="{{ url_for('auth.change_password') }}">🔑 Zmień hasło</a>
-                        <a href="{{ url_for('auth.logout') }}">🚪 Wyloguj</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </nav>
+    {% include 'navbar.html' %}
 
+    <div class="page-header">
+        <h1>💻 Szczegóły urządzenia: {{ device.ip_address }}</h1>
+        <div class="page-header-actions">
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary btn-small">← Powrót</a>
+        </div>
+    </div>
     <div class="container">
         <div class="device-header">
             <div class="device-info">

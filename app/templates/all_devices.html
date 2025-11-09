@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wszystkie urządzenia - LAN Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dashboard">
+    <!-- Navbar -->
+    {% include 'navbar.html' %}
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>📱 Wszystkie urządzenia</h1>
+        <div class="header-actions">
+            <a href="{{ url_for('main.scan_network') }}" class="btn btn-scan">
+                🔍 Skanuj sieć
+            </a>
+        </div>
+    </div>
+
+    <!-- Komunikaty Flash -->
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Statystyki -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-info">
+                    <h3>{{ total_devices }}</h3>
+                    <p>Wszystkie urządzenia</p>
+                </div>
+            </div>
+            
+            <div class="stat-card stat-success">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <h3>{{ online_devices }}</h3>
+                    <p>Aktywne</p>
+                </div>
+            </div>
+            
+            <div class="stat-card stat-danger">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-info">
+                    <h3>{{ offline_devices }}</h3>
+                    <p>Nieaktywne</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Urządzenia aktywne -->
+        <div class="content-section">
+            <div class="section-header">
+                <h2>✅ Urządzenia aktywne ({{ online_devices }})</h2>
+            </div>
+            
+            {% if active_devices %}
+                <div class="devices-grid">
+                    {% for device in active_devices %}
+                        <div class="device-card">
+                            <div class="device-header">
+                                <div class="device-icon">💻</div>
+                                {% if device.is_new %}
+                                    <span class="badge badge-new">NOWE</span>
+                                {% endif %}
+                            </div>
+                            <div class="device-info">
+                                <h3>{{ device.hostname or 'Nieznane urządzenie' }}</h3>
+                                <p class="device-ip">🌐 IP: {{ device.ip_address }}</p>
+                                <p>📟 MAC: {{ device.mac_address or 'Brak' }}</p>
+                                {% if device.vendor %}
+                                    <p>🏭 {{ device.vendor }}</p>
+                                {% endif %}
+                                <p style="font-size: 12px; color: #999; margin-top: 10px;">
+                                    Ostatnio widziany: {{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}
+                                </p>
+                            </div>
+                            <div class="device-actions">
+                                <a href="{{ url_for('main.device_detail', device_id=device.id) }}" class="btn-link">
+                                    Szczegóły →
+                                </a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p style="text-align: center; color: #999; padding: 40px;">Brak aktywnych urządzeń w sieci</p>
+            {% endif %}
+        </div>
+
+        <!-- Urządzenia nieaktywne -->
+        <div class="content-section" style="margin-top: 40px;">
+            <div class="section-header">
+                <h2>⚠️ Urządzenia nieaktywne ({{ offline_devices }})</h2>
+            </div>
+            
+            {% if inactive_devices %}
+                <div class="devices-grid">
+                    {% for device in inactive_devices %}
+                        <div class="device-card offline">
+                            <div class="device-header">
+                                <div class="device-icon">💤</div>
+                                <span class="badge badge-offline">OFFLINE</span>
+                            </div>
+                            <div class="device-info">
+                                <h3>{{ device.hostname or 'Nieznane urządzenie' }}</h3>
+                                <p class="device-ip">🌐 IP: {{ device.ip_address }}</p>
+                                <p>📟 MAC: {{ device.mac_address or 'Brak' }}</p>
+                                {% if device.vendor %}
+                                    <p>🏭 {{ device.vendor }}</p>
+                                {% endif %}
+                                <p style="font-size: 12px; color: #999; margin-top: 10px;">
+                                    Ostatnio widziany: {{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}
+                                </p>
+                            </div>
+                            <div class="device-actions">
+                                <a href="{{ url_for('main.device_detail', device_id=device.id) }}" class="btn-link">
+                                    Szczegóły →
+                                </a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p style="text-align: center; color: #999; padding: 40px;">Brak nieaktywnych urządzeń w historii</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

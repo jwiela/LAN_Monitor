@@ -1,0 +1,123 @@
+<!-- Top Bar -->
+<div class="topbar">
+    <div class="topbar-left">
+        <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <a href="{{ url_for('main.dashboard') }}" class="topbar-brand">
+            <span class="logo-icon">🌐</span>
+            <span>LAN Monitor</span>
+        </a>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-user">
+            <button class="dropdown-toggle user-dropdown-toggle" onclick="toggleUserDropdown()">
+                👤 {{ current_user.username }}
+                <span class="dropdown-arrow">▼</span>
+            </button>
+            <div id="user-dropdown" class="dropdown-menu dropdown-menu-right">
+                <a href="{{ url_for('auth.change_password') }}" class="dropdown-item">
+                    🔑 Zmień hasło
+                </a>
+                <div class="dropdown-divider"></div>
+                <a href="{{ url_for('auth.logout') }}" class="dropdown-item">
+                    🚪 Wyloguj
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <nav class="sidebar-nav">
+        <a href="{{ url_for('main.all_devices') }}" class="sidebar-link">
+            <span class="sidebar-link-icon">💻</span>
+            <span class="sidebar-link-text">Wszystkie urządzenia</span>
+        </a>
+        
+        <div class="sidebar-section">
+            <a href="#" class="sidebar-link has-dropdown" onclick="toggleSidebarDropdown('alerts-dropdown'); return false;">
+                <span class="sidebar-link-icon">🔔</span>
+                <span class="sidebar-link-text">Alerty</span>
+                {% set unread_count = get_unread_alerts_count() %}
+                {% if unread_count and unread_count > 0 %}
+                    <span class="sidebar-badge">{{ unread_count }}</span>
+                {% endif %}
+                <span class="sidebar-arrow">▼</span>
+            </a>
+            <div id="alerts-dropdown" class="sidebar-dropdown">
+                <a href="{{ url_for('main.alerts_page', period=1) }}" class="sidebar-dropdown-link">Ostatnia godzina</a>
+                <a href="{{ url_for('main.alerts_page', period=24) }}" class="sidebar-dropdown-link">Ostatnie 24h</a>
+                <a href="{{ url_for('main.alerts_page', period=168) }}" class="sidebar-dropdown-link">Ostatni tydzień</a>
+                <a href="{{ url_for('main.alerts_page', period=-1) }}" class="sidebar-dropdown-link">Wszystkie</a>
+            </div>
+        </div>
+        
+        <a href="{{ url_for('main.email_settings') }}" class="sidebar-link">
+            <span class="sidebar-link-icon">📧</span>
+            <span class="sidebar-link-text">Powiadomienia email</span>
+        </a>
+    </nav>
+</div>
+
+
+<script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const hamburger = document.getElementById('hamburgerBtn');
+        
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+        hamburger.classList.toggle('active');
+    }
+    
+    function closeSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const hamburger = document.getElementById('hamburgerBtn');
+        
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+        hamburger.classList.remove('active');
+    }
+    
+    function toggleSidebarDropdown(id) {
+        const dropdown = document.getElementById(id);
+        const allDropdowns = document.querySelectorAll('.sidebar-dropdown');
+        
+        allDropdowns.forEach(d => {
+            if (d.id !== id) {
+                d.classList.remove('active');
+            }
+        });
+        
+        dropdown.classList.toggle('active');
+    }
+    
+    function toggleUserDropdown() {
+        const dropdown = document.getElementById('user-dropdown');
+        dropdown.classList.toggle('show');
+    }
+    
+    // Zamknij dropdown po kliknięciu poza nim
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.topbar-user')) {
+            const dropdown = document.getElementById('user-dropdown');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+        }
+    });
+    
+    // Zamknij sidebar po kliknięciu w link
+    document.querySelectorAll('.sidebar-link:not(.has-dropdown), .sidebar-dropdown-link').forEach(link => {
+        link.addEventListener('click', closeSidebar);
+    });
+</script>

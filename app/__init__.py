@@ -49,6 +49,15 @@ def create_app(config_name='default'):
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     
+    # Context processor - dostępne w wszystkich szablonach
+    @app.context_processor
+    def inject_unread_alerts():
+        """Dodaj liczbę nieprzeczytanych alertów do kontekstu szablonów"""
+        from app.models import Alert
+        def get_unread_alerts_count():
+            return Alert.query.filter_by(is_read=False).count()
+        return dict(get_unread_alerts_count=get_unread_alerts_count)
+    
     # Inicjalizuj traffic manager
     from core.traffic_manager import traffic_manager
     traffic_manager.init_app(app)

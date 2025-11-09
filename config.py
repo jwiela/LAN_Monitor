@@ -49,7 +49,9 @@ class Config:
     MAIL_USERNAME = os.getenv('MAIL_USERNAME', '')
     MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', '')
     MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', '')
-    ALERT_EMAIL = os.getenv('ALERT_EMAIL', '')
+    # Wspieraj zarówno ALERT_EMAIL jak i ALERT_RECIPIENTS
+    ALERT_EMAIL = os.getenv('ALERT_EMAIL') or os.getenv('ALERT_RECIPIENTS', '')
+    ALERT_RECIPIENTS = os.getenv('ALERT_RECIPIENTS') or os.getenv('ALERT_EMAIL', '')
     
     # Admin
     ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')

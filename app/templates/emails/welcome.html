@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        .content {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+        .info-box {
+            background: white;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .alert-type {
+            display: inline-block;
+            padding: 5px 12px;
+            margin: 5px 5px 5px 0;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .alert-new {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .alert-offline {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .alert-report {
+            background: #d1d3e2;
+            color: #383d41;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+            color: #6c757d;
+            font-size: 12px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        h2 {
+            color: #667eea;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌐 LAN Monitor</h1>
+        <p style="margin: 10px 0 0 0; font-size: 18px;">System Monitorowania Sieci</p>
+    </div>
+    
+    <div class="content">
+        <h2>Witamy w systemie alertów!</h2>
+        
+        <p>Witaj <strong>{{ name }}</strong>,</p>
+        
+        <p>Twój adres email <strong>{{ email }}</strong> został dodany do systemu alertów LAN Monitor.</p>
+        
+        <div class="info-box">
+            <h3 style="margin-top: 0; color: #667eea;">📧 Rodzaje alertów, które będziesz otrzymywać:</h3>
+            
+            {% if receive_new_device %}
+            <div class="alert-type alert-new">
+                🆕 Nowe urządzenia w sieci
+            </div>
+            {% endif %}
+            
+            {% if receive_offline %}
+            <div class="alert-type alert-offline">
+                ⚠️ Urządzenia offline
+            </div>
+            {% endif %}
+            
+            {% if receive_daily_report %}
+            <div class="alert-type alert-report">
+                📊 Raporty dzienne
+            </div>
+            {% endif %}
+            
+            {% if not receive_new_device and not receive_offline and not receive_daily_report %}
+            <p style="color: #6c757d; margin-bottom: 0;">Nie wybrano żadnych rodzajów alertów. Możesz to zmienić w ustawieniach.</p>
+            {% endif %}
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-top: 0; color: #667eea;">ℹ️ Informacje o systemie</h3>
+            <ul style="margin: 10px 0;">
+                <li><strong>System:</strong> LAN Monitoring System</li>
+                <li><strong>Email alertów:</strong> alertsystem@lanmonitor.pl</li>
+                <li><strong>Monitorowana sieć:</strong> 192.168.1.0/24</li>
+            </ul>
+        </div>
+        
+        <p>Jeśli otrzymałeś ten email przez pomyłkę lub chcesz wypisać się z listy alertów, skontaktuj się z administratorem systemu.</p>
+        
+        <p style="margin-top: 30px;">
+            <strong>Dziękujemy!</strong><br>
+            Zespół LAN Monitor
+        </p>
+    </div>
+    
+    <div class="footer">
+        <p>Ten email został wygenerowany automatycznie przez system LAN Monitor.<br>
+        Data: {{ current_date }}</p>
+    </div>
+</body>
+</html>
