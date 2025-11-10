@@ -52,10 +52,10 @@
                 <span class="sidebar-arrow">▼</span>
             </a>
             <div id="alerts-dropdown" class="sidebar-dropdown">
-                <a href="{{ url_for('main.alerts_page', period=1) }}" class="sidebar-dropdown-link">Ostatnia godzina</a>
-                <a href="{{ url_for('main.alerts_page', period=24) }}" class="sidebar-dropdown-link">Ostatnie 24h</a>
-                <a href="{{ url_for('main.alerts_page', period=168) }}" class="sidebar-dropdown-link">Ostatni tydzień</a>
-                <a href="{{ url_for('main.alerts_page', period=-1) }}" class="sidebar-dropdown-link">Wszystkie</a>
+                <a href="{{ url_for('main.alerts_page', period='1') }}" class="sidebar-dropdown-link">Ostatnia godzina</a>
+                <a href="{{ url_for('main.alerts_page', period='24') }}" class="sidebar-dropdown-link">Ostatnie 24h</a>
+                <a href="{{ url_for('main.alerts_page', period='168') }}" class="sidebar-dropdown-link">Ostatni tydzień</a>
+                <a href="{{ url_for('main.alerts_page', period='all') }}" class="sidebar-dropdown-link">Wszystkie</a>
             </div>
         </div>
         
@@ -91,27 +91,52 @@
     function toggleSidebarDropdown(id) {
         const dropdown = document.getElementById(id);
         const allDropdowns = document.querySelectorAll('.sidebar-dropdown');
+        const allArrows = document.querySelectorAll('.sidebar-arrow');
         
-        allDropdowns.forEach(d => {
+        // Znajdź strzałkę należącą do tego dropdown
+        const parentLink = dropdown.previousElementSibling;
+        const arrow = parentLink ? parentLink.querySelector('.sidebar-arrow') : null;
+        
+        // Zamknij wszystkie inne dropdowny i zresetuj ich strzałki
+        allDropdowns.forEach((d, index) => {
             if (d.id !== id) {
                 d.classList.remove('active');
+                if (allArrows[index]) {
+                    allArrows[index].classList.remove('rotated');
+                }
             }
         });
         
+        // Toggle aktualnego dropdown
         dropdown.classList.toggle('active');
+        
+        // Toggle strzałki
+        if (arrow) {
+            arrow.classList.toggle('rotated');
+        }
     }
     
     function toggleUserDropdown() {
         const dropdown = document.getElementById('user-dropdown');
+        const arrow = document.querySelector('.user-dropdown-toggle .dropdown-arrow');
+        
         dropdown.classList.toggle('show');
+        
+        if (arrow) {
+            arrow.classList.toggle('rotated');
+        }
     }
     
     // Zamknij dropdown po kliknięciu poza nim
     document.addEventListener('click', function(event) {
         if (!event.target.closest('.topbar-user')) {
             const dropdown = document.getElementById('user-dropdown');
+            const arrow = document.querySelector('.user-dropdown-toggle .dropdown-arrow');
             if (dropdown) {
                 dropdown.classList.remove('show');
+            }
+            if (arrow) {
+                arrow.classList.remove('rotated');
             }
         }
     });

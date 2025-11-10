@@ -100,7 +100,8 @@ body {
 
 .form-group input[type="text"],
 .form-group input[type="password"],
-.form-group input[type="email"] {
+.form-group input[type="email"],
+.form-control {
     width: 100%;
     padding: 12px 15px;
     border: 2px solid #e2e8f0;
@@ -109,7 +110,8 @@ body {
     transition: border-color 0.3s;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-control:focus {
     outline: none;
     border-color: #667eea;
 }
@@ -588,6 +590,12 @@ body {
 .dropdown-arrow {
     font-size: 10px;
     margin-left: 5px;
+    transition: transform 0.3s;
+    display: inline-block;
+}
+
+.dropdown-arrow.rotated {
+    transform: rotate(180deg);
 }
 
 .notification-badge {
@@ -1021,8 +1029,7 @@ body {
     flex-shrink: 0;
 }
 
-.sidebar-dropdown.active + .sidebar-link .sidebar-arrow,
-.sidebar-link.has-dropdown:hover .sidebar-arrow {
+.sidebar-arrow.rotated {
     transform: rotate(180deg);
 }
 
@@ -1137,28 +1144,36 @@ body {
     flex-wrap: wrap;
 }
 
-.filter-btn {
-    padding: 8px 16px;
+.filter-btn,
+.btn-filter {
+    padding: 10px 20px;
     border: 2px solid #e2e8f0;
     background: white;
-    border-radius: 5px;
-    color: #666;
+    border-radius: 8px;
+    color: #64748b;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s;
     text-decoration: none;
+    display: inline-block;
 }
 
-.filter-btn:hover {
+.filter-btn:hover,
+.btn-filter:hover {
     border-color: #667eea;
     color: #667eea;
+    background: #f8f9ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
 
-.filter-btn.active {
-    background: #667eea;
-    border-color: #667eea;
+.filter-btn.active,
+.btn-filter.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: transparent;
     color: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 /* Alert Items */

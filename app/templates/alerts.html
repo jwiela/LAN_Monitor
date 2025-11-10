@@ -21,20 +21,20 @@
     <div class="container">
         <!-- Filter buttons -->
         <div class="filter-buttons" style="margin-bottom: 30px;">
-            <a href="{{ url_for('main.alerts_page', period=1) }}" 
-               class="btn-filter {% if period == 1 %}active{% endif %}">
+            <a href="{{ url_for('main.alerts_page', period='1') }}" 
+               class="btn-filter {% if period == '1' %}active{% endif %}">
                 Ostatnia godzina
             </a>
-            <a href="{{ url_for('main.alerts_page', period=24) }}" 
-               class="btn-filter {% if period == 24 %}active{% endif %}">
+            <a href="{{ url_for('main.alerts_page', period='24') }}" 
+               class="btn-filter {% if period == '24' %}active{% endif %}">
                 Ostatnie 24h
             </a>
-            <a href="{{ url_for('main.alerts_page', period=168) }}" 
-               class="btn-filter {% if period == 168 %}active{% endif %}">
+            <a href="{{ url_for('main.alerts_page', period='168') }}" 
+               class="btn-filter {% if period == '168' %}active{% endif %}">
                 Ostatni tydzień
             </a>
-            <a href="{{ url_for('main.alerts_page', period=-1) }}" 
-               class="btn-filter {% if period == -1 %}active{% endif %}">
+            <a href="{{ url_for('main.alerts_page', period='all') }}" 
+               class="btn-filter {% if period == 'all' %}active{% endif %}">
                 Wszystkie
             </a>
         </div>

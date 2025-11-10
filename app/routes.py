@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from app.models import Device, DeviceActivity, Alert
 from app import db
 from sqlalchemy import desc
+from datetime import datetime
 import threading
 import logging
 
@@ -73,20 +74,29 @@ def all_devices():
 
 
 @main_bp.route('/alerts')
-@main_bp.route('/alerts/<int:period>')
+@main_bp.route('/alerts/<period>')
 @login_required
-def alerts_page(period=1):
+def alerts_page(period='1'):
     """
     Strona z alertami
-    period: -1=wszystkie, 1=ostatnia godzina, 24=ostatnie 24h, 168=tydzień (7*24h)
+    period: 'all'=wszystkie, '1'=ostatnia godzina, '24'=ostatnie 24h, '168'=tydzień (7*24h)
     """
     from datetime import datetime, timedelta
     
     query = Alert.query
     
-    if period > 0:
+    # Konwertuj period na int jeśli nie jest 'all'
+    if period == 'all':
+        period_int = -1
+    else:
+        try:
+            period_int = int(period)
+        except ValueError:
+            period_int = 1
+    
+    if period_int > 0:
         # Filtruj według czasu
-        time_threshold = datetime.now() - timedelta(hours=period)
+        time_threshold = datetime.now() - timedelta(hours=period_int)
         query = query.filter(Alert.created_at >= time_threshold)
     
     # Pobierz alerty
@@ -97,10 +107,10 @@ def alerts_page(period=1):
     
     # Mapowanie okresów na nazwy
     period_names = {
-        1: 'Ostatnia godzina',
-        24: 'Ostatnie 24 godziny',
-        168: 'Ostatni tydzień',
-        -1: 'Wszystkie alerty'
+        '1': 'Ostatnia godzina',
+        '24': 'Ostatnie 24 godziny',
+        '168': 'Ostatni tydzień',
+        'all': 'Wszystkie alerty'
     }
     
     period_name = period_names.get(period, 'Wszystkie alerty')
@@ -474,6 +484,8 @@ def add_email_recipient():
             except Exception as email_error:
                 print(f"❌ [DEBUG] Błąd wysyłania emaila powitalnego: {email_error}")
                 logger.error(f"❌ Błąd wysyłania emaila powitalnego: {email_error}")
+                import traceback
+                traceback.print_exc()
                 flash(f'✅ Dodano odbiorcę {email}, ale wystąpił błąd przy wysyłaniu emaila: {str(email_error)}', 'warning')
         else:
             print(f"⚠️ [DEBUG] Email manager wyłączony")

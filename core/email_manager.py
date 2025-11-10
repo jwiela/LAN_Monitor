@@ -363,9 +363,9 @@ LAN MONITOR - ALERT
             logger.error(f"❌ Test połączenia SMTP nieudany: {e}")
             return False
     
-    def send_welcome_email(self, recipient_email: str, recipient_name: Optional[str] = None) -> bool:
+    def send_welcome_email(self, recipient_email: str, recipient_name: str = None) -> bool:
         """
-        Wyślij email powitalny do nowego odbiorcy
+        Wyślij prosty email powitalny do nowego odbiorcy
         
         Args:
             recipient_email: Adres email odbiorcy
@@ -378,40 +378,123 @@ LAN MONITOR - ALERT
             logger.warning("Email manager wyłączony - nie wysyłam emaila powitalnego")
             return False
         
-        subject = "Witaj w systemie powiadomien LAN Monitor"
-        
-        name_display = recipient_name if recipient_name else recipient_email
-        
-        # Prosta wersja tekstowa zamiast HTML
-        text_body = f"""Witaj, {name_display}!
-
-Twoj adres email zostal pomyslnie dodany do systemu powiadomien LAN Monitor.
-
-Od teraz bedziesz otrzymywac powiadomienia o zdarzeniach w Twojej sieci lokalnej zgodnie z wybranymi preferencjami.
-
-O czym mozesz byc powiadamiany:
-- Nowe urzadzenia - gdy nowe urzadzenie pojawi sie w sieci
-- Urzadzenie offline - gdy urzadzenie przestanie byc dostepne
-- Urzadzenie online - gdy urzadzenie ponownie sie polaczy
-- Nietypowy ruch - wykrycie nietypowej aktywnosci sieciowej
-- Wysoki ruch - przekroczenie limitow transferu danych
-
-Mozesz w kazdej chwili zmienic swoje preferencje powiadomien w panelu administracyjnym systemu LAN Monitor, w sekcji Ustawienia email.
-
----
-To jest automatyczna wiadomosc z systemu LAN Monitor
-Data rejestracji: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-"""
-        
-        logger.info(f"Wysyłam email powitalny do: {recipient_email}")
-        success = self.send_email(subject, text_body, to_email=recipient_email, html=False)
-        
-        if success:
-            logger.info(f"✅ Email powitalny wysłany pomyślnie do: {recipient_email}")
-        else:
-            logger.error(f"❌ Nie udało się wysłać emaila powitalnego do: {recipient_email}")
-        
-        return success
+        try:
+            subject = "� Witaj w systemie LAN Monitor!"
+            
+            # Prosta treść HTML
+            name_display = recipient_name if recipient_name else recipient_email
+            html_body = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f7fafc;
+                    }}
+                    .container {{
+                        background: white;
+                        border-radius: 12px;
+                        overflow: hidden;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    }}
+                    .header {{
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 40px 30px;
+                        text-align: center;
+                    }}
+                    .header h1 {{
+                        margin: 0;
+                        font-size: 28px;
+                        font-weight: 600;
+                    }}
+                    .content {{
+                        padding: 40px 30px;
+                    }}
+                    .welcome-text {{
+                        font-size: 18px;
+                        color: #1e293b;
+                        margin-bottom: 20px;
+                    }}
+                    .info-box {{
+                        background: #f8fafc;
+                        border-left: 4px solid #667eea;
+                        padding: 20px;
+                        margin: 20px 0;
+                        border-radius: 4px;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        padding: 30px;
+                        color: #64748b;
+                        font-size: 14px;
+                        background: #f8fafc;
+                    }}
+                    .emoji {{
+                        font-size: 48px;
+                        margin-bottom: 20px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="emoji">&#128187;</div>
+                        <h1>Witaj w LAN Monitor!</h1>
+                    </div>
+                    <div class="content">
+                        <p class="welcome-text">Cześć <strong>{name_display}</strong>!</p>
+                        <p>Dziękujemy za dołączenie do systemu powiadomień LAN Monitor.</p>
+                        
+                        <div class="info-box">
+                            <p><strong>📧 Twój email został pomyślnie dodany do listy odbiorców.</strong></p>
+                            <p style="margin: 10px 0 0 0;">Od teraz będziesz otrzymywać powiadomienia o wszystkich ważnych wydarzeniach w Twojej sieci lokalnej zgodnie z wybranymi preferencjami.</p>
+                        </div>
+                        
+                        <p><strong>Co możesz śledzić?</strong></p>
+                        <ul style="color: #475569;">
+                            <li>🆕 Nowe urządzenia podłączone do sieci</li>
+                            <li>⚠️ Urządzenia, które przeszły w tryb offline</li>
+                            <li>✅ Urządzenia, które wróciły do sieci</li>
+                            <li>📊 Nietypowy ruch sieciowy</li>
+                            <li>🔥 Wysoki poziom ruchu w sieci</li>
+                        </ul>
+                        
+                        <p style="margin-top: 30px;">Jeśli masz jakiekolwiek pytania, skontaktuj się z administratorem systemu.</p>
+                    </div>
+                    <div class="footer">
+                        <p><strong>LAN Monitor</strong></p>
+                        <p style="margin: 5px 0; color: #94a3b8;">Inteligentny system monitorowania sieci lokalnej</p>
+                        <p style="margin-top: 20px; font-size: 13px; color: #64748b;">To jest automatyczna wiadomość z systemu LAN Monitor</p>
+                        <p style="margin-top: 10px; font-size: 12px; color: #94a3b8;">Data: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            logger.info(f"Wysyłam email powitalny do: {recipient_email}")
+            success = self.send_email(subject, html_body, to_email=recipient_email, html=True)
+            
+            if success:
+                logger.info(f"✅ Email powitalny wysłany pomyślnie do: {recipient_email}")
+            else:
+                logger.error(f"❌ Nie udało się wysłać emaila powitalnego do: {recipient_email}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ Błąd podczas wysyłania emaila powitalnego: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False
     
     def send_alert_to_recipients(self, alert_type: str, message: str, device_info: Optional[dict] = None) -> dict:
         """
