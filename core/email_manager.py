@@ -33,7 +33,8 @@ class EmailManager:
         else:
             logger.warning("⚠️ Email manager wyłączony - brak konfiguracji SMTP")
     
-    def send_email(self, subject: str, body: str, to_email: Optional[str] = None, html: bool = False) -> bool:
+    def send_email(self, subject: str, body: str, to_email: Optional[str] = None, html: bool = False, 
+                   attachment: bytes = None, attachment_name: str = None) -> bool:
         """
         Wyślij email
         
@@ -42,6 +43,8 @@ class EmailManager:
             body: Treść wiadomości
             to_email: Adres odbiorcy (opcjonalnie, domyślnie ALERT_EMAIL)
             html: Czy treść jest w formacie HTML
+            attachment: Dane załącznika (bytes)
+            attachment_name: Nazwa pliku załącznika
             
         Returns:
             bool: True jeśli wysłano pomyślnie
@@ -70,6 +73,13 @@ class EmailManager:
                 msg.attach(MIMEText(body, 'html', 'utf-8'))
             else:
                 msg.attach(MIMEText(body, 'plain', 'utf-8'))
+            
+            # Dodaj załącznik jeśli jest
+            if attachment and attachment_name:
+                from email.mime.application import MIMEApplication
+                part = MIMEApplication(attachment, Name=attachment_name)
+                part['Content-Disposition'] = f'attachment; filename="{attachment_name}"'
+                msg.attach(part)
             
             # Połącz się z serwerem SMTP
             with smtplib.SMTP(self.config.MAIL_SERVER, self.config.MAIL_PORT) as server:

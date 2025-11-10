@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ device.ip_address }} - Raporty</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dashboard">
+    {% include 'navbar.html' %}
+
+    <div class="page-header">
+        <div class="page-header-content">
+            <a href="{{ url_for('main.all_devices') }}" class="btn btn-secondary btn-small">← Wszystkie urządzenia</a>
+            <h1>📊 {{ device.ip_address }} - Raporty</h1>
+            <div style="width: 150px;"></div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Podstawowe informacje o urządzeniu -->
+        <div class="device-info-card">
+            <h2>💻 Informacje o urządzeniu</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Adres IP</span>
+                    <span class="info-value">{{ device.ip_address }}</span>
+                </div>
+                {% if device.mac_address %}
+                <div class="info-item">
+                    <span class="info-label">Adres MAC</span>
+                    <span class="info-value">{{ device.mac_address }}</span>
+                </div>
+                {% endif %}
+                <div class="info-item">
+                    <span class="info-label">Dostawca</span>
+                    <span class="info-value">{{ device.vendor or 'Nieznany' }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Status</span>
+                    <span class="status-badge {{ 'status-active' if device.is_online else 'status-inactive' }}">
+                        {{ '🟢 Online' if device.is_online else '🔴 Offline' }}
+                    </span>
+                </div>
+                {% if device.last_seen %}
+                <div class="info-item">
+                    <span class="info-label">Ostatnia aktywność</span>
+                    <span class="info-value">{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Layout dwukolumnowy -->
+        <div class="reports-layout">
+            <!-- Lewa kolumna: Generator raportów -->
+            <div class="reports-generator">
+                <div class="reports-section-header">
+                    <div class="section-icon">📊</div>
+                    <div>
+                        <h2>Generowanie raportów</h2>
+                        <p>Wybierz okres i wygeneruj raport</p>
+                    </div>
+                </div>
+                
+                <div class="generator-form">
+                    <div class="form-group">
+                        <label for="reportPeriod">Okres raportu</label>
+                        <select id="reportPeriod" class="form-select">
+                            <option value="1">📅 Raport dzienny (24h)</option>
+                            <option value="7" selected>📊 Raport tygodniowy (7 dni)</option>
+                            <option value="30">📈 Raport miesięczny (30 dni)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="action-buttons-grid">
+                        <button onclick="generateReport()" class="btn-action btn-primary-action">
+                            <span class="btn-icon">🌐</span>
+                            <div>
+                                <div class="btn-title">Generuj HTML</div>
+                                <div class="btn-subtitle">Otwórz w przeglądarce</div>
+                            </div>
+                        </button>
+                        
+                        <button onclick="generateReportPDF()" class="btn-action btn-secondary-action">
+                            <span class="btn-icon">📄</span>
+                            <div>
+                                <div class="btn-title">Pobierz PDF</div>
+                                <div class="btn-subtitle">Zapisz na dysku</div>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <div class="form-group email-section">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="sendEmailCheckbox" onchange="toggleEmailSelect()">
+                            <span>Wyślij raport emailem</span>
+                        </label>
+                    </div>
+                    
+                    <div id="emailSelectGroup" class="form-group" style="display: none;">
+                        <label for="emailRecipient">Wybierz odbiorcę</label>
+                        <select id="emailRecipient" class="form-select">
+                            <option value="">-- Wybierz email --</option>
+                            {% if email_recipients %}
+                                {% for recipient in email_recipients %}
+                                <option value="{{ recipient.email }}">{{ recipient.email }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                        
+                        <button onclick="sendReportEmail(this)" class="btn-send-email">
+                            <span>✉️</span>
+                            Wyślij raport
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Prawa kolumna: Lista wygenerowanych raportów -->
+            <div class="reports-history">
+                <div class="reports-section-header">
+                    <div class="section-icon">📋</div>
+                    <div>
+                        <h2>Historia raportów</h2>
+                        <p>Ostatnio wygenerowane raporty</p>
+                    </div>
+                </div>
+                
+                <div class="reports-list">
+                    {% if reports %}
+                        {% for report in reports %}
+                        <div class="report-item">
+                            <div class="report-icon">
+                                {% if report.period_days == 1 %}📅
+                                {% elif report.period_days == 7 %}📊
+                                {% else %}📈{% endif %}
+                            </div>
+                            <div class="report-info">
+                                <div class="report-title">Raport {{ report.period_name }}</div>
+                                <div class="report-date">{{ report.generated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                            </div>
+                            <div class="report-actions">
+                                <button onclick="viewReport({{ report.id }}, {{ report.period_days }})" 
+                                        class="btn-icon-action" title="Zobacz raport">
+                                    👁️
+                                </button>
+                                <button onclick="downloadReportPDF({{ report.period_days }})" 
+                                        class="btn-icon-action" title="Pobierz PDF">
+                                    📥
+                                </button>
+                                <button onclick="showEmailModal({{ report.id }})" 
+                                        class="btn-icon-action" title="Wyślij emailem">
+                                    📧
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <p>Brak wygenerowanych raportów</p>
+                            <small>Wygeneruj pierwszy raport używając formularza obok</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal do wysyłania emaila -->
+    <div id="emailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📧 Wyślij raport emailem</h3>
+                <button class="modal-close" onclick="closeEmailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="emailInput">Adres email odbiorcy</label>
+                    <input type="email" id="emailInput" class="form-control" 
+                           placeholder="np. osoba@example.com" required>
+                </div>
+                <div id="emailError" class="error-message" style="display: none;"></div>
+                <div id="emailSuccess" class="success-message" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeEmailModal()" class="btn btn-secondary">Anuluj</button>
+                <button onclick="sendExistingReportEmail()" class="btn btn-primary">
+                    <span>📤</span> Wyślij
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const deviceId = {{ device.id }};
+        let currentReportId = null;
+
+        function toggleEmailSelect() {
+            const checkbox = document.getElementById('sendEmailCheckbox');
+            const emailGroup = document.getElementById('emailSelectGroup');
+            
+            console.log('Checkbox checked:', checkbox.checked);
+            console.log('Email group element:', emailGroup);
+            
+            if (checkbox.checked) {
+                emailGroup.style.display = 'block';
+            } else {
+                emailGroup.style.display = 'none';
+            }
+        }
+
+        function generateReport() {
+            const period = document.getElementById('reportPeriod').value;
+            
+            let url = `/device/${deviceId}/generate-report?period=${period}&format=html`;
+            
+            fetch(url, {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.open(`/device/${deviceId}/report?period=${period}`, '_blank');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        alert('Błąd: ' + (data.error || 'Nie udało się wygenerować raportu'));
+                    }
+                })
+                .catch(error => {
+                    alert('Błąd połączenia: ' + error);
+                });
+        }
+
+        function generateReportPDF() {
+            const period = document.getElementById('reportPeriod').value;
+            
+            let url = `/device/${deviceId}/generate-report?period=${period}&format=pdf`;
+            
+            fetch(url, {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = `/device/${deviceId}/report/pdf?period=${period}`;
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        alert('Błąd: ' + (data.error || 'Nie udało się wygenerować raportu'));
+                    }
+                })
+                .catch(error => {
+                    alert('Błąd połączenia: ' + error);
+                });
+        }
+
+        function sendReportEmail(btn) {
+            const period = document.getElementById('reportPeriod').value;
+            const emailRecipient = document.getElementById('emailRecipient').value;
+            
+            if (!emailRecipient) {
+                alert('Wybierz odbiorcę email!');
+                return;
+            }
+            
+            // Pokaż komunikat ładowania
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Wysyłanie...';
+            
+            let url = `/device/${deviceId}/generate-report?period=${period}&format=pdf&email=${encodeURIComponent(emailRecipient)}`;
+            
+            fetch(url, {method: 'POST'})
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    
+                    console.log('Response data:', data);
+                    
+                    if (data.success) {
+                        if (data.email_sent === true) {
+                            alert('✅ Raport został pomyślnie wygenerowany i wysłany na email:\n' + emailRecipient);
+                        } else if (data.email_sent === false && data.email_error) {
+                            alert('⚠️ Raport został wygenerowany, ale wystąpił błąd podczas wysyłania emaila:\n' + data.email_error);
+                        } else {
+                            alert('✅ Raport został wygenerowany');
+                        }
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        alert('❌ Błąd: ' + (data.error || 'Nie udało się wysłać raportu'));
+                    }
+                })
+                .catch(error => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    console.error('Fetch error:', error);
+                    alert('❌ Błąd połączenia: ' + error.message);
+                });
+        }
+
+        function viewReport(reportId, period) {
+            window.open(`/device/${deviceId}/report?period=${period}`, '_blank');
+        }
+
+        function downloadReportPDF(period) {
+            window.location.href = `/device/${deviceId}/report/pdf?period=${period}`;
+        }
+
+        function showEmailModal(reportId) {
+            currentReportId = reportId;
+            document.getElementById('emailModal').style.display = 'flex';
+            document.getElementById('emailInput').value = '';
+            document.getElementById('emailError').style.display = 'none';
+            document.getElementById('emailSuccess').style.display = 'none';
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailModal').style.display = 'none';
+            currentReportId = null;
+        }
+
+        function sendExistingReportEmail() {
+            const email = document.getElementById('emailInput').value;
+            const errorDiv = document.getElementById('emailError');
+            const successDiv = document.getElementById('emailSuccess');
+            
+            if (!email) {
+                errorDiv.textContent = 'Proszę podać adres email';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            
+            // Wyślij request
+            fetch(`/device/${deviceId}/report/${currentReportId}/send-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `email=${encodeURIComponent(email)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    successDiv.textContent = data.message;
+                    successDiv.style.display = 'block';
+                    setTimeout(() => {
+                        closeEmailModal();
+                    }, 2000);
+                } else {
+                    errorDiv.textContent = data.error || 'Wystąpił błąd';
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                errorDiv.textContent = 'Wystąpił błąd połączenia';
+                errorDiv.style.display = 'block';
+            });
+        }
+
+        // Zamknij modal po kliknięciu poza nim
+        window.onclick = function(event) {
+            const modal = document.getElementById('emailModal');
+            if (event.target == modal) {
+                closeEmailModal();
+            }
+        }
+    </script>
+</body>
+</html>

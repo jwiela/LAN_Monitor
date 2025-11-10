@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raport - {{ device.ip_address }} ({{ period_days }} dni)</title>
+    <style>
+        {% if pdf_mode %}
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        body {
+            font-size: 10pt;
+            line-height: 1.3;
+        }
+        .no-print { display: none; }
+        {% else %}
+        body {
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .report-container {
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        {% endif %}
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+        
+        .report-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+        }
+        
+        .report-header {
+            text-align: center;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #333;
+            margin-bottom: 20px;
+        }
+        
+        .report-header h1 {
+            font-size: 20pt;
+            margin-bottom: 5px;
+        }
+        
+        .report-header .subtitle {
+            font-size: 14pt;
+            color: #666;
+            margin-bottom: 3px;
+        }
+        
+        .report-header .period {
+            font-size: 9pt;
+            color: #999;
+        }
+        
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+        
+        .info-table td {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+        }
+        
+        .info-table td:first-child {
+            font-weight: bold;
+            width: 30%;
+            background: #f5f5f5;
+        }
+        
+        .section-title {
+            font-size: 14pt;
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
+        }
+        
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        .stats-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stats-table td:first-child {
+            font-weight: bold;
+            width: 40%;
+        }
+        
+        .stats-table tr:nth-child(odd) {
+            background: #f9f9f9;
+        }
+        
+        .highlight-row {
+            background: #e8f4f8 !important;
+            font-weight: bold;
+        }
+        
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .column-box {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        
+        .column-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 9pt;
+        }
+        
+        .top-hours-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .top-hours-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            margin-bottom: 3px;
+            background: #f5f5f5;
+            border-left: 3px solid #333;
+            font-size: 9pt;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border: 1px solid #ccc;
+            margin-top: 5px;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 8pt;
+            font-weight: bold;
+        }
+        
+        .report-footer {
+            text-align: center;
+            padding-top: 15px;
+            margin-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #999;
+            font-size: 8pt;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: 2px solid #333;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: none;
+            color: #333;
+        }
+        
+        .btn:hover {
+            background: #333;
+            color: white;
+        }
+        
+        @media print {
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <!-- Przyciski akcji (tylko dla HTML) -->
+        <div class="action-buttons no-print">
+            <a href="{{ url_for('main.device_detail', device_id=device.id) }}" class="btn">
+                ← Powrót
+            </a>
+            <button onclick="window.print()" class="btn">
+                🖨️ Drukuj
+            </button>
+            <a href="{{ url_for('main.device_report_pdf', device_id=device.id) }}?period={{ period_days }}" class="btn">
+                📑 Pobierz PDF
+            </a>
+        </div>
+        
+        <!-- Nagłówek raportu -->
+        <div class="report-header">
+            <h1>Raport Urządzenia</h1>
+            <div class="subtitle">{{ device.ip_address }}</div>
+            <div class="period">
+                {% if period_days == 1 %}
+                Raport dzienny (ostatnie 24 godziny)
+                {% elif period_days == 7 %}
+                Raport tygodniowy (ostatnie 7 dni)
+                {% elif period_days == 30 %}
+                Raport miesięczny (ostatnie 30 dni)
+                {% else %}
+                Raport za okres {{ period_days }} dni
+                {% endif %}
+                <br>
+                {{ start_date.strftime('%Y-%m-%d %H:%M') }} - {{ generated_at.strftime('%Y-%m-%d %H:%M') }}
+            </div>
+        </div>
+        
+        <!-- Podstawowe informacje -->
+        <table class="info-table">
+            <tr>
+                <td>Adres IP</td>
+                <td>{{ device.ip_address }}</td>
+            </tr>
+            {% if device.mac_address %}
+            <tr>
+                <td>Adres MAC</td>
+                <td>{{ device.mac_address }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <td>Dostawca</td>
+                <td>{{ device.vendor or 'Nieznany' }}</td>
+            </tr>
+            <tr>
+                <td>Status</td>
+                <td>{{ 'Online' if device.is_online else 'Offline' }}</td>
+            </tr>
+            <tr>
+                <td>Ostatnia aktywność</td>
+                <td>{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') if device.last_seen else 'Nigdy' }}</td>
+            </tr>
+        </table>
+        
+        <!-- Statystyki ruchu -->
+        <h2 class="section-title">Statystyki ruchu sieciowego</h2>
+        <table class="stats-table">
+            <tr class="highlight-row">
+                <td>Całkowity ruch</td>
+                <td>{{ stats.total_traffic }}</td>
+            </tr>
+            <tr>
+                <td>Pobrane dane</td>
+                <td>{{ stats.total_traffic_in }}</td>
+            </tr>
+            <tr>
+                <td>Wysłane dane</td>
+                <td>{{ stats.total_traffic_out }}</td>
+            </tr>
+            <tr>
+                <td>Średnio dziennie</td>
+                <td>{{ stats.avg_traffic_per_day }}</td>
+            </tr>
+        </table>
+        
+        <!-- Szczegółowa analiza -->
+        <h2 class="section-title">Szczegółowa analiza</h2>
+        <div class="two-column">
+            <div class="column-box">
+                <div class="column-title">📥 Pobieranie</div>
+                <div class="stat-row">
+                    <span>Maksimum:</span>
+                    <strong>{{ stats.max_traffic_in }}</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Średnia:</span>
+                    <strong>{{ stats.avg_traffic_in }}</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Minimum:</span>
+                    <strong>{{ stats.min_traffic_in }}</strong>
+                </div>
+            </div>
+            
+            <div class="column-box">
+                <div class="column-title">📤 Wysyłanie</div>
+                <div class="stat-row">
+                    <span>Maksimum:</span>
+                    <strong>{{ stats.max_traffic_out }}</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Średnia:</span>
+                    <strong>{{ stats.avg_traffic_out }}</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Minimum:</span>
+                    <strong>{{ stats.min_traffic_out }}</strong>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dostępność -->
+        <h2 class="section-title">Dostępność urządzenia</h2>
+        <table class="stats-table">
+            <tr>
+                <td>Liczba rekordów aktywności</td>
+                <td>{{ stats.total_records }}</td>
+            </tr>
+            <tr>
+                <td>Przybliżony czas aktywności</td>
+                <td>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ stats.uptime_percentage }}%">
+                            {{ stats.uptime_percentage }}%
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+        
+        <!-- Top godziny aktywności -->
+        {% if stats.top_hours %}
+        <h2 class="section-title">Najbardziej aktywne godziny</h2>
+        <ul class="top-hours-list">
+            {% for hour, traffic in stats.top_hours %}
+            <li>
+                <span>{{ hour }}</span>
+                <strong>{{ traffic }}</strong>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        
+        <!-- Stopka -->
+        <div class="report-footer">
+            <p>Raport wygenerowany: {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+            <p>LAN Monitor - System monitorowania sieci lokalnej</p>
+        </div>
+    </div>
+</body>
+</html>

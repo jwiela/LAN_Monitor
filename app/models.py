@@ -134,6 +134,34 @@ class EmailRecipient(db.Model):
         return mapping.get(alert_type, False)
 
 
+class DeviceReport(db.Model):
+    """Model wygenerowanego raportu urządzenia"""
+    __tablename__ = 'device_reports'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=False)
+    period_days = db.Column(db.Integer, nullable=False)  # 1, 7, 30
+    generated_at = db.Column(db.DateTime, default=datetime.now)
+    file_path = db.Column(db.String(500), nullable=True)  # Ścieżka do pliku PDF (opcjonalne)
+    
+    # Relacja
+    device = db.relationship('Device', backref=db.backref('reports', lazy='dynamic'))
+    
+    def __repr__(self):
+        return f'<DeviceReport {self.device.ip_address} - {self.period_days}d>'
+    
+    @property
+    def period_name(self):
+        """Zwróć nazwę okresu"""
+        if self.period_days == 1:
+            return 'Dzienny'
+        elif self.period_days == 7:
+            return 'Tygodniowy'
+        elif self.period_days == 30:
+            return 'Miesięczny'
+        return f'{self.period_days} dni'
+
+
 @login_manager.user_loader
 def load_user(user_id):
     """Callback do ładowania użytkownika dla Flask-Login"""

@@ -199,12 +199,16 @@ def test_email():
 @main_bp.route('/device/<int:device_id>')
 @login_required
 def device_detail(device_id):
-    """Szczegóły urządzenia - ruch sieciowy, statystyki"""
+    """Szczegóły urządzenia - ruch sieciowy, statystyki (z Dashboard)"""
     from datetime import datetime, timedelta
-    from flask import current_app
+    from flask import current_app, request
     from core.traffic_manager import traffic_manager
     
     device = Device.query.get_or_404(device_id)
+    
+    # Zawsze powrót do Dashboard
+    back_url = url_for('main.dashboard')
+    back_text = 'Dashboard'
     
     logger.info(f"📱 Wyświetlanie szczegółów urządzenia: {device.ip_address}")
     
@@ -301,7 +305,32 @@ def device_detail(device_id):
                          last_seen=last_seen,
                          grafana_enabled=grafana_enabled,
                          grafana_url=grafana_url,
-                         dashboard_uid=dashboard_uid)
+                         dashboard_uid=dashboard_uid,
+                         back_url=back_url,
+                         back_text=back_text)
+
+
+@main_bp.route('/device/<int:device_id>/all')
+@login_required
+def device_detail_all(device_id):
+    """Szczegóły urządzenia z widoku 'Wszystkie urządzenia' - tylko raporty"""
+    from app.models import DeviceReport, EmailRecipient
+    
+    device = Device.query.get_or_404(device_id)
+    
+    # Pobierz ostatnie 10 raportów
+    reports = DeviceReport.query.filter_by(device_id=device.id)\
+        .order_by(DeviceReport.generated_at.desc())\
+        .limit(10)\
+        .all()
+    
+    # Pobierz listę odbiorców email
+    email_recipients = EmailRecipient.query.filter_by(is_active=True).all()
+    
+    return render_template('device_detail_all.html',
+                         device=device,
+                         reports=reports,
+                         email_recipients=email_recipients)
 
 
 @main_bp.route('/mark-alerts-read', methods=['POST'])
@@ -573,3 +602,387 @@ def delete_email_recipient(recipient_id):
         flash(f'Błąd: {str(e)}', 'error')
     
     return redirect(url_for('main.email_settings'))
+
+
+@main_bp.route('/device/<int:device_id>/generate-report', methods=['POST'])
+@login_required
+def generate_report(device_id):
+    """Generuj nowy raport i zapisz w historii (opcjonalnie wyślij emailem)"""
+    from datetime import datetime
+    from flask import request, jsonify
+    
+    logger.info(f"🔵 generate_report wywołane dla device_id={device_id}")
+    
+    try:
+        # Pobierz parametry
+        period_days = int(request.args.get('period', 7))
+        format_type = request.args.get('format', 'html')
+        email = request.args.get('email', '')
+        
+        logger.info(f"📊 Parametry: period={period_days}, format={format_type}, email={email}")
+        
+        device = Device.query.get_or_404(device_id)
+        
+        logger.info(f"🖥️ Urządzenie: {device.hostname or device.ip_address}")
+        
+        # Zapisz w historii raportów
+        from app.models import DeviceReport
+        report_record = DeviceReport(
+            device_id=device.id,
+            period_days=period_days
+        )
+        db.session.add(report_record)
+        db.session.commit()
+        
+        logger.info(f"✅ Zapisano raport w historii, ID={report_record.id}")
+        
+        # Jeśli wybrano wysyłkę emailem
+        if email:
+            logger.info(f"📧 Rozpoczynam wysyłkę emaila do {email}")
+            # Generuj PDF
+            from datetime import timedelta
+            from io import BytesIO
+            from weasyprint import HTML
+            
+            start_date = datetime.now() - timedelta(days=period_days)
+            activities = DeviceActivity.query.filter(
+                DeviceActivity.device_id == device.id,
+                DeviceActivity.timestamp >= start_date
+            ).order_by(DeviceActivity.timestamp.desc()).all()
+            
+            logger.info(f"📈 Pobrano {len(activities)} aktywności")
+            
+            stats = calculate_device_stats(device, activities, period_days)
+            logger.info(f"📊 Obliczono statystyki: {stats}")
+            
+            # Renderuj HTML raportu
+            logger.info("🎨 Renderuję HTML raportu...")
+            html_content = render_template('device_report.html',
+                                         device=device,
+                                         activities=activities,
+                                         stats=stats,
+                                         period_days=period_days,
+                                         start_date=start_date,
+                                         generated_at=datetime.now())
+            
+            logger.info("📄 Generuję PDF...")
+            # Generuj PDF
+            pdf_data = HTML(string=html_content, base_url=request.url_root).write_pdf()
+            logger.info(f"✅ PDF wygenerowany, rozmiar: {len(pdf_data)} bajtów")
+            
+            # Wyślij email
+            from core.email_manager import EmailManager
+            from config import Config
+            logger.info("📧 Inicjalizuję EmailManager...")
+            email_manager = EmailManager(Config)
+            
+            period_name = {1: "dzienny", 7: "tygodniowy", 30: "miesięczny"}.get(period_days, f"{period_days}-dniowy")
+            subject = f"Raport {period_name} - {device.hostname or device.ip_address}"
+            
+            # Przygotuj dane do szablonu emaila - funkcja pomocnicza
+            def format_bytes_helper(bytes_value):
+                if bytes_value < 1000:
+                    return f"{bytes_value:.2f} B"
+                elif bytes_value < 1000 * 1000:
+                    return f"{bytes_value / 1000:.2f} KB"
+                elif bytes_value < 1000 * 1000 * 1000:
+                    return f"{bytes_value / 1000 / 1000:.2f} MB"
+                else:
+                    return f"{bytes_value / 1000 / 1000 / 1000:.2f} GB"
+            
+            logger.info(f"📊 Przygotowuję statystyki emaila...")
+            email_stats = {
+                'total_download': format_bytes_helper(stats.get('total_traffic_in_raw', 0)) if stats else '0 B',
+                'total_upload': format_bytes_helper(stats.get('total_traffic_out_raw', 0)) if stats else '0 B',
+                'total_traffic': format_bytes_helper(stats.get('total_traffic_raw', 0)) if stats else '0 B',
+                'active_sessions': stats.get('total_records', 0) if stats else 0
+            }
+            
+            logger.info(f"📧 Renderuję szablon emaila...")
+            # Renderuj email z template
+            email_body = render_template('emails/report.html',
+                                        device_name=device.hostname or 'Nieznane',
+                                        device_ip=device.ip_address,
+                                        period_name=period_name,
+                                        period_days=period_days,
+                                        generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        stats=email_stats)
+            
+            filename = f"raport_{device.hostname or device.ip_address}_{period_days}d_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            
+            logger.info(f"📤 Wysyłam email do {email}...")
+            try:
+                result = email_manager.send_email(
+                    subject=subject,
+                    body=email_body,
+                    to_email=email,
+                    html=True,
+                    attachment=pdf_data,
+                    attachment_name=filename
+                )
+                if result:
+                    logger.info(f"✅ Email wysłany pomyślnie do {email}")
+                    return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': True})
+                else:
+                    logger.warning(f"⚠️ EmailManager zwrócił False")
+                    return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': False, 'email_error': 'EmailManager zwrócił False - sprawdź konfigurację SMTP'})
+            except Exception as email_error:
+                import traceback
+                logger.error(f"❌ Błąd wysyłania emaila: {email_error}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': False, 'email_error': str(email_error)})
+        
+        return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': False})
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"❌ Błąd generowania raportu: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@main_bp.route('/device/<int:device_id>/report')
+@login_required
+def device_report(device_id):
+    """Wyświetl raport HTML dla urządzenia (bez zapisywania do historii)"""
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+    from flask import request
+    
+    # Pobierz urządzenie
+    device = Device.query.get_or_404(device_id)
+    
+    # Pobierz okres z parametru (domyślnie 7 dni)
+    period_days = int(request.args.get('period', 7))
+    start_date = datetime.now() - timedelta(days=period_days)
+    
+    # Pobierz aktywności z wybranego okresu
+    activities = DeviceActivity.query.filter(
+        DeviceActivity.device_id == device.id,
+        DeviceActivity.timestamp >= start_date
+    ).order_by(DeviceActivity.timestamp.desc()).all()
+    
+    # Oblicz statystyki
+    stats = calculate_device_stats(device, activities, period_days)
+    
+    return render_template('device_report.html',
+                         device=device,
+                         activities=activities,
+                         stats=stats,
+                         period_days=period_days,
+                         start_date=start_date,
+                         generated_at=datetime.now())
+
+
+@main_bp.route('/device/<int:device_id>/report/pdf')
+@login_required
+def device_report_pdf(device_id):
+    """Generuj raport PDF dla urządzenia"""
+    from datetime import datetime, timedelta
+    from io import BytesIO
+    from flask import request
+    
+    try:
+        from weasyprint import HTML, CSS
+        from flask import make_response
+        
+        # Pobierz urządzenie
+        device = Device.query.get_or_404(device_id)
+        
+        # Pobierz okres z parametru (domyślnie 7 dni)
+        period_days = int(request.args.get('period', 7))
+        start_date = datetime.now() - timedelta(days=period_days)
+        
+        # Pobierz aktywności z wybranego okresu
+        activities = DeviceActivity.query.filter(
+            DeviceActivity.device_id == device.id,
+            DeviceActivity.timestamp >= start_date
+        ).order_by(DeviceActivity.timestamp.desc()).all()
+        
+        # Oblicz statystyki
+        stats = calculate_device_stats(device, activities, period_days)
+        
+        # Renderuj HTML
+        html_content = render_template('device_report.html',
+                                      device=device,
+                                      activities=activities,
+                                      stats=stats,
+                                      period_days=period_days,
+                                      start_date=start_date,
+                                      generated_at=datetime.now(),
+                                      pdf_mode=True)
+        
+        # Konwertuj do PDF
+        pdf = HTML(string=html_content).write_pdf()
+        
+        # Przygotuj response
+        response = make_response(pdf)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename=raport_{device.ip_address}_{period_days}dni.pdf'
+        
+        return response
+        
+    except ImportError:
+        flash('⚠️ Biblioteka WeasyPrint nie jest zainstalowana. Zainstaluj ją poleceniem: pip install weasyprint', 'warning')
+        return redirect(url_for('main.device_detail', device_id=device_id))
+    except Exception as e:
+        logger.error(f"❌ Błąd generowania PDF: {e}")
+        flash(f'Błąd generowania PDF: {str(e)}', 'error')
+        return redirect(url_for('main.device_detail', device_id=device_id))
+
+
+@main_bp.route('/device/<int:device_id>/report/<int:report_id>/send-email', methods=['POST'])
+@login_required
+def send_report_email(device_id, report_id):
+    """Wyślij raport emailem"""
+    from datetime import datetime, timedelta
+    from app.models import DeviceReport, EmailRecipient
+    from core.email_manager import email_manager
+    from flask import request
+    
+    try:
+        from weasyprint import HTML
+        
+        device = Device.query.get_or_404(device_id)
+        report = DeviceReport.query.get_or_404(report_id)
+        
+        # Pobierz email z formularza
+        email = request.form.get('email')
+        if not email:
+            return jsonify({'success': False, 'error': 'Nie podano adresu email'}), 400
+        
+        # Wygeneruj raport PDF
+        period_days = report.period_days
+        start_date = datetime.now() - timedelta(days=period_days)
+        
+        activities = DeviceActivity.query.filter(
+            DeviceActivity.device_id == device.id,
+            DeviceActivity.timestamp >= start_date
+        ).order_by(DeviceActivity.timestamp.desc()).all()
+        
+        stats = calculate_device_stats(device, activities, period_days)
+        
+        html_content = render_template('device_report.html',
+                                      device=device,
+                                      activities=activities,
+                                      stats=stats,
+                                      period_days=period_days,
+                                      start_date=start_date,
+                                      generated_at=datetime.now(),
+                                      pdf_mode=True)
+        
+        pdf_data = HTML(string=html_content).write_pdf()
+        
+        # Wyślij email
+        subject = f'Raport urządzenia {device.ip_address} ({report.period_name})'
+        body = f'''
+        <h2>Raport urządzenia sieciowego</h2>
+        <p><strong>Urządzenie:</strong> {device.ip_address}</p>
+        <p><strong>Okres:</strong> {report.period_name} ({period_days} dni)</p>
+        <p><strong>Data wygenerowania:</strong> {report.generated_at.strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p>W załączniku znajduje się szczegółowy raport w formacie PDF.</p>
+        <br>
+        <p style="color: #999;">LAN Monitor - System monitorowania sieci lokalnej</p>
+        '''
+        
+        filename = f'raport_{device.ip_address}_{period_days}dni.pdf'
+        
+        success = email_manager.send_email(
+            to_email=email,
+            subject=subject,
+            body=body,
+            html=True,
+            attachment=pdf_data,
+            attachment_name=filename
+        )
+        
+        if success:
+            logger.info(f"✅ Wysłano raport na email: {email}")
+            return jsonify({'success': True, 'message': f'Raport został wysłany na adres {email}'})
+        else:
+            return jsonify({'success': False, 'error': 'Nie udało się wysłać emaila'}), 500
+            
+    except ImportError:
+        return jsonify({'success': False, 'error': 'Biblioteka WeasyPrint nie jest zainstalowana'}), 500
+    except Exception as e:
+        logger.error(f"❌ Błąd wysyłania raportu emailem: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def calculate_device_stats(device, activities, period_days):
+    """Oblicz statystyki dla urządzenia"""
+    from datetime import datetime, timedelta
+    
+    # Funkcja pomocnicza do formatowania rozmiaru (system dziesiętny SI)
+    def format_bytes(bytes_value):
+        """Formatuje bajty do odpowiedniej jednostki (1000-based, SI)"""
+        if bytes_value < 1000:
+            return f"{bytes_value:.2f} B"
+        elif bytes_value < 1000 * 1000:
+            return f"{bytes_value / 1000:.2f} KB"
+        elif bytes_value < 1000 * 1000 * 1000:
+            return f"{bytes_value / 1000 / 1000:.2f} MB"
+        else:
+            return f"{bytes_value / 1000 / 1000 / 1000:.2f} GB"
+    
+    if not activities:
+        return {
+            'total_traffic_in': 0,
+            'total_traffic_out': 0,
+            'total_traffic': 0,
+            'avg_traffic_per_day': 0,
+            'max_traffic_in': 0,
+            'max_traffic_out': 0,
+            'min_traffic_in': 0,
+            'min_traffic_out': 0,
+            'avg_traffic_in': 0,
+            'avg_traffic_out': 0,
+            'uptime_percentage': 0,
+            'total_records': 0,
+            'top_hours': []
+        }
+    
+    # Podstawowe statystyki
+    total_in = sum(a.bytes_received for a in activities)
+    total_out = sum(a.bytes_sent for a in activities)
+    total = total_in + total_out
+    
+    traffic_in_list = [a.bytes_received for a in activities if a.bytes_received > 0]
+    traffic_out_list = [a.bytes_sent for a in activities if a.bytes_sent > 0]
+    
+    # Analiza godzin aktywności
+    hour_traffic = {}
+    for activity in activities:
+        hour = activity.timestamp.hour
+        if hour not in hour_traffic:
+            hour_traffic[hour] = 0
+        hour_traffic[hour] += activity.bytes_received + activity.bytes_sent
+    
+    # Top 5 najbardziej aktywnych godzin
+    top_hours = sorted(hour_traffic.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_hours_formatted = [(f"{h:02d}:00-{h:02d}:59", format_bytes(traffic)) for h, traffic in top_hours]
+    
+    # Oblicz uptime (procent czasu z aktywnością)
+    # Zakładamy że każdy rekord = 1 minuta aktywności
+    total_minutes_in_period = period_days * 24 * 60
+    active_minutes = len(activities)  # Przybliżenie
+    uptime_percentage = (active_minutes / total_minutes_in_period * 100) if total_minutes_in_period > 0 else 0
+    
+    return {
+        'total_traffic_in': format_bytes(total_in),
+        'total_traffic_out': format_bytes(total_out),
+        'total_traffic': format_bytes(total),
+        'total_traffic_in_raw': total_in,
+        'total_traffic_out_raw': total_out,
+        'total_traffic_raw': total,
+        'avg_traffic_per_day': format_bytes(total / period_days if period_days > 0 else 0),
+        'max_traffic_in': format_bytes(max(traffic_in_list)) if traffic_in_list else '0 B',
+        'max_traffic_out': format_bytes(max(traffic_out_list)) if traffic_out_list else '0 B',
+        'min_traffic_in': format_bytes(min(traffic_in_list)) if traffic_in_list else '0 B',
+        'min_traffic_out': format_bytes(min(traffic_out_list)) if traffic_out_list else '0 B',
+        'avg_traffic_in': format_bytes(sum(traffic_in_list) / len(traffic_in_list)) if traffic_in_list else '0 B',
+        'avg_traffic_out': format_bytes(sum(traffic_out_list) / len(traffic_out_list)) if traffic_out_list else '0 B',
+        'uptime_percentage': round(uptime_percentage, 2),
+        'total_records': len(activities),
+        'top_hours': top_hours_formatted
+    }

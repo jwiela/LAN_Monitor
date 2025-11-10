@@ -6,13 +6,14 @@
     <title>{{ device.ip_address }} - LAN Monitor</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="dashboard">
     {% include 'navbar.html' %}
 
     <div class="page-header">
-        <h1>💻 Szczegóły urządzenia: {{ device.ip_address }}</h1>
-        <div class="page-header-actions">
-            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary btn-small">← Powrót</a>
+        <div class="page-header-content">
+            <a href="{{ back_url }}" class="btn btn-secondary btn-small">← {{ back_text }}</a>
+            <h1>💻 Szczegóły urządzenia: {{ device.ip_address }}</h1>
+            <div style="width: 80px;"></div>
         </div>
     </div>
     <div class="container">
@@ -73,10 +74,10 @@
         <!-- Wykresy Grafana -->
         {% if grafana_enabled %}
         <div class="grafana-section">
-            <h3>📈 Wykresy ruchu sieciowego (6h)</h3>
+            <h3>📈 Wykresy ruchu sieciowego (24h)</h3>
             <div class="grafana-embed">
                 <iframe
-                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=1&from=now-6h&to=now&refresh=30s"
+                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=1&from=now-24h&to=now&refresh=30s"
                     width="100%"
                     height="400"
                     frameborder="0">
@@ -84,7 +85,7 @@
             </div>
             <div class="grafana-embed">
                 <iframe
-                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=2&from=now-6h&to=now&refresh=30s"
+                    src="{{ grafana_url }}/d-solo/{{ dashboard_uid }}/device-traffic?orgId=1&var-device_ip={{ device.ip_address }}&panelId=2&from=now-24h&to=now&refresh=30s"
                     width="100%"
                     height="400"
                     frameborder="0">
