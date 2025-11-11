@@ -79,6 +79,9 @@ class DeviceActivity(db.Model):
     packets_sent = db.Column(db.Integer, default=0)
     packets_received = db.Column(db.Integer, default=0)
     
+    # Statystyki protokołów (JSON: {"http": 1234, "https": 5678, ...})
+    protocol_stats = db.Column(db.Text, nullable=True)
+    
     def __repr__(self):
         return f'<DeviceActivity {self.device_id} at {self.timestamp}>'
 

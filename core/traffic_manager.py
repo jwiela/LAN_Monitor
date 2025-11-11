@@ -121,6 +121,7 @@ class TrafficManager:
         try:
             from app import db
             from app.models import Device, DeviceActivity
+            import json
             
             with self.app.app_context():
                 from datetime import datetime
@@ -132,13 +133,19 @@ class TrafficManager:
                         logger.warning(f"⚠ Nie znaleziono urządzenia {ip} w bazie")
                         continue
                     
+                    # Przygotuj dane protokołów jako JSON
+                    protocol_stats_json = None
+                    if 'protocols' in data and data['protocols']:
+                        protocol_stats_json = json.dumps(data['protocols'])
+                    
                     # Utwórz rekord aktywności (mapowanie nazw kolumn)
                     activity = DeviceActivity(
                         device_id=device.id,
                         bytes_received=data['bytes_in'],
                         bytes_sent=data['bytes_out'],
                         packets_received=data['packets_in'],
-                        packets_sent=data['packets_out']
+                        packets_sent=data['packets_out'],
+                        protocol_stats=protocol_stats_json
                     )
                     db.session.add(activity)
                     
@@ -199,7 +206,7 @@ class TrafficManager:
         return stats.get(ip)
     
     def get_total_stats(self) -> dict:
-        """Pobiera zsumowane statystyki ze wszystkich urządzeń"""
+        """Pobiera zsumowane statystyki ze wszystkich urządzeń oraz aktualne prędkości"""
         stats = self.traffic_monitor.get_stats(reset=False)
         
         if not stats:
@@ -208,7 +215,9 @@ class TrafficManager:
                 'total_bytes_out': 0,
                 'total_packets_in': 0,
                 'total_packets_out': 0,
-                'device_count': 0
+                'device_count': 0,
+                'download_rate': 0.0,
+                'upload_rate': 0.0
             }
         
         total_bytes_in = sum(s['bytes_in'] for s in stats.values())
@@ -216,12 +225,28 @@ class TrafficManager:
         total_packets_in = sum(s['packets_in'] for s in stats.values())
         total_packets_out = sum(s['packets_out'] for s in stats.values())
         
+        # Pobierz aktualne prędkości dla wszystkich urządzeń
+        download_rate = 0.0
+        upload_rate = 0.0
+        
+        if self.traffic_monitor and self.traffic_monitor.running:
+            try:
+                rates = self.traffic_monitor.get_current_rates()
+                # Zsumuj prędkości wszystkich urządzeń
+                for ip, (down, up) in rates.items():
+                    download_rate += down
+                    upload_rate += up
+            except Exception as e:
+                logger.error(f"❌ Błąd pobierania rates: {e}")
+        
         return {
             'total_bytes_in': total_bytes_in,
             'total_bytes_out': total_bytes_out,
             'total_packets_in': total_packets_in,
             'total_packets_out': total_packets_out,
-            'device_count': len(stats)
+            'device_count': len(stats),
+            'download_rate': download_rate,
+            'upload_rate': upload_rate
         }
 
 

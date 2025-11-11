@@ -65,23 +65,11 @@
             <p>Będziesz otrzymywać powiadomienia o:</p>
             
             {% if notify_new_device %}
-            <div class="alert-badge">Nowe urządzenia w sieci</div>
-            {% endif %}
-            
-            {% if notify_device_offline %}
-            <div class="alert-badge">Urządzenie offline</div>
-            {% endif %}
-            
-            {% if notify_device_online %}
-            <div class="alert-badge">Urządzenie ponownie online</div>
+            <div class="alert-badge">🆕 Nowe urządzenia w sieci</div>
             {% endif %}
             
             {% if notify_unusual_traffic %}
-            <div class="alert-badge">Nietypowy ruch sieciowy</div>
-            {% endif %}
-            
-            {% if notify_high_traffic %}
-            <div class="alert-badge">Wysoki ruch sieciowy</div>
+            <div class="alert-badge">📊 Nietypowy ruch sieciowy</div>
             {% endif %}
         </div>
         

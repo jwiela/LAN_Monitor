@@ -57,16 +57,17 @@ class ScannerManager:
         
         while self.running:
             try:
-                # Wykonaj skanowanie
-                logger.info("🔍 Rozpoczynam skanowanie sieci...")
-                devices = self.network_scanner.scan_network()
-                
-                # Zaktualizuj bazę danych
-                if devices:
-                    self._update_devices(devices)
-                    logger.info(f"✅ Skanowanie zakończone: znaleziono {len(devices)} urządzeń")
-                else:
-                    logger.warning("⚠ Skanowanie nie znalazło żadnych urządzeń")
+                # Wykonaj skanowanie w kontekście aplikacji
+                with self.app.app_context():
+                    logger.info("🔍 Rozpoczynam skanowanie sieci...")
+                    devices = self.network_scanner.scan_network()
+                    
+                    # Zaktualizuj bazę danych
+                    if devices:
+                        self._update_devices(devices)
+                        logger.info(f"✅ Skanowanie zakończone: znaleziono {len(devices)} urządzeń")
+                    else:
+                        logger.warning("⚠ Skanowanie nie znalazło żadnych urządzeń")
                 
                 # Czekaj przed następnym skanowaniem
                 time.sleep(self.scan_interval)
@@ -75,12 +76,13 @@ class ScannerManager:
                 logger.error(f"❌ Błąd w pętli skanowania: {e}", exc_info=True)
                 time.sleep(60)  # Poczekaj minutę przed kolejną próbą
     
-    def _update_devices(self, scanned_devices):
+    def _update_devices(self, scanned_devices, immediate_offline=False):
         """
         Aktualizuje bazę danych na podstawie zeskanowanych urządzeń
         
         Args:
             scanned_devices: Słownik z informacjami o urządzeniach {ip: info}
+            immediate_offline: Jeśli True, natychmiast oznacz brakujące urządzenia jako offline
         """
         try:
             from app import db
@@ -117,10 +119,9 @@ class ScannerManager:
                         
                         updated_devices.append(device)
                         
-                        # Jeśli urządzenie było offline, wyślij powiadomienie
+                        # NIE wysyłamy powiadomień o powrocie online - tylko nowe urządzenia są alertem
                         if was_offline:
-                            logger.info(f"📱 Urządzenie {device.name or ip} wróciło online")
-                            self._send_online_notification(device, email_manager)
+                            logger.info(f"📱 Urządzenie {device.hostname or ip} wróciło online (bez alertu)")
                     else:
                         # Dodaj nowe urządzenie
                         device = Device(
@@ -128,13 +129,12 @@ class ScannerManager:
                             mac_address=info['mac'],
                             vendor=info['vendor'],
                             hostname=info['hostname'],
-                            name=info['hostname'] or info['vendor'] or f"Device {ip}",
                             is_online=True,
                             last_seen=datetime.now()
                         )
                         db.session.add(device)
                         new_devices.append(device)
-                        logger.info(f"🆕 Wykryto nowe urządzenie: {device.name} ({ip})")
+                        logger.info(f"🆕 Wykryto nowe urządzenie: {device.hostname or device.vendor or ip} ({ip})")
                 
                 # Zapisz zmiany
                 db.session.commit()
@@ -144,7 +144,7 @@ class ScannerManager:
                     self._send_new_device_notification(device, email_manager)
                 
                 # Oznacz urządzenia jako offline jeśli nie zostały wykryte
-                self._mark_missing_devices_offline(scanned_devices)
+                self._mark_missing_devices_offline(scanned_devices, immediate=immediate_offline)
                 
                 if new_devices:
                     logger.info(f"✅ Dodano {len(new_devices)} nowych urządzeń")
@@ -154,8 +154,14 @@ class ScannerManager:
         except Exception as e:
             logger.error(f"❌ Błąd aktualizacji urządzeń: {e}", exc_info=True)
     
-    def _mark_missing_devices_offline(self, scanned_devices):
-        """Oznacza urządzenia jako offline jeśli nie zostały wykryte w skanowaniu"""
+    def _mark_missing_devices_offline(self, scanned_devices, immediate=False):
+        """
+        Oznacza urządzenia jako offline jeśli nie zostały wykryte w skanowaniu
+        
+        Args:
+            scanned_devices: Słownik ze zeskanowanymi urządzeniami {ip: info}
+            immediate: Jeśli True, natychmiast oznacz jako offline bez czekania (dla ręcznego skanowania)
+        """
         try:
             from app import db
             from app.models import Device
@@ -167,15 +173,25 @@ class ScannerManager:
             for device in online_devices:
                 # Jeśli urządzenie nie zostało wykryte w skanowaniu
                 if device.ip_address not in scanned_devices:
-                    # Sprawdź czy minęło wystarczająco dużo czasu (2 * scan_interval)
-                    if device.last_seen:
+                    should_mark_offline = False
+                    
+                    if immediate:
+                        # Dla ręcznego skanowania - natychmiastowo oznacz jako offline
+                        should_mark_offline = True
+                        logger.info(f"📴 Urządzenie {device.hostname or device.ip_address} nie wykryte w ręcznym skanowaniu - oznaczam jako offline")
+                    elif device.last_seen:
+                        # Dla automatycznego skanowania - czekaj 2 cykle
                         time_since_seen = datetime.now() - device.last_seen
                         threshold = timedelta(seconds=self.scan_interval * 2)
                         
                         if time_since_seen > threshold:
-                            logger.info(f"📴 Urządzenie {device.name or device.ip_address} offline")
-                            device.is_online = False
-                            self._send_offline_notification(device)
+                            should_mark_offline = True
+                            logger.info(f"📴 Urządzenie {device.hostname or device.ip_address} offline (brak odpowiedzi przez {time_since_seen.seconds}s)")
+                    
+                    if should_mark_offline:
+                        device.is_online = False
+                        # NIE wysyłamy powiadomień o offline - tylko nowe urządzenia są alertem
+                        logger.info(f"📴 Urządzenie {device.hostname or device.ip_address} oznaczone jako offline (bez alertu)")
             
             db.session.commit()
             
@@ -189,7 +205,7 @@ class ScannerManager:
             from app import db
             
             # Utwórz alert
-            message = f"Wykryto nowe urządzenie w sieci: {device.name} ({device.ip_address})"
+            message = f"Wykryto nowe urządzenie w sieci: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
             alert = Alert(
                 device_id=device.id,
                 alert_type='new_device',
@@ -199,24 +215,37 @@ class ScannerManager:
             db.session.commit()
             
             # Wyślij emaile do odbiorców z włączonym powiadomieniem
-            recipients = EmailRecipient.query.filter_by(notify_new_device=True).all()
+            recipients = EmailRecipient.query.filter_by(is_active=True, notify_new_device=True).all()
             
-            for recipient in recipients:
-                try:
-                    email_manager.send_alert(
-                        to_email=recipient.email,
-                        alert_type='new_device',
-                        message=message,
-                        device_info={
-                            'name': device.name,
-                            'ip': device.ip_address,
-                            'mac': device.mac_address,
-                            'vendor': device.vendor
+            if recipients:
+                for recipient in recipients:
+                    try:
+                        # Przygotuj dane urządzenia
+                        device_data = {
+                            'hostname': device.hostname or 'Nieznane urządzenie',
+                            'ip_address': device.ip_address,
+                            'mac_address': device.mac_address,
+                            'vendor': device.vendor or '-',
+                            'first_seen': device.first_seen.strftime('%Y-%m-%d %H:%M:%S') if device.first_seen else 'Teraz'
                         }
-                    )
-                    logger.info(f"📧 Wysłano powiadomienie o nowym urządzeniu do {recipient.email}")
-                except Exception as e:
-                    logger.error(f"❌ Błąd wysyłania emaila do {recipient.email}: {e}")
+                        
+                        # Renderuj template
+                        from flask import render_template
+                        html_body = render_template('emails/alert_simple.html',
+                                                   alert_emoji='🆕',
+                                                   message=message,
+                                                   device_info=device_data,
+                                                   timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                        
+                        # Wyślij email
+                        subject = '🆕 Nowe urządzenie w sieci'
+                        email_manager.send_email(subject, html_body, to_email=recipient.email, html=True)
+                        
+                        logger.info(f"📧 Wysłano powiadomienie o nowym urządzeniu do {recipient.email}")
+                    except Exception as e:
+                        logger.error(f"❌ Błąd wysyłania emaila do {recipient.email}: {e}")
+            else:
+                logger.info("📧 Brak aktywnych odbiorców dla alertów o nowych urządzeniach")
                     
         except Exception as e:
             logger.error(f"❌ Błąd wysyłania powiadomienia o nowym urządzeniu: {e}", exc_info=True)
@@ -228,7 +257,7 @@ class ScannerManager:
             from app import db
             
             # Utwórz alert
-            message = f"Urządzenie wróciło online: {device.name} ({device.ip_address})"
+            message = f"Urządzenie wróciło online: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
             alert = Alert(
                 device_id=device.id,
                 alert_type='device_online',
@@ -247,7 +276,7 @@ class ScannerManager:
                         alert_type='device_online',
                         message=message,
                         device_info={
-                            'name': device.name,
+                            'name': device.hostname or device.vendor or 'Nieznane urządzenie',
                             'ip': device.ip_address,
                             'mac': device.mac_address,
                             'vendor': device.vendor
@@ -271,7 +300,7 @@ class ScannerManager:
             email_manager = EmailManager(Config)
             
             # Utwórz alert
-            message = f"Urządzenie offline: {device.name} ({device.ip_address})"
+            message = f"Urządzenie offline: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
             alert = Alert(
                 device_id=device.id,
                 alert_type='device_offline',
@@ -290,7 +319,7 @@ class ScannerManager:
                         alert_type='device_offline',
                         message=message,
                         device_info={
-                            'name': device.name,
+                            'name': device.hostname or device.vendor or 'Nieznane urządzenie',
                             'ip': device.ip_address,
                             'mac': device.mac_address,
                             'vendor': device.vendor
@@ -342,17 +371,25 @@ class ScannerManager:
             logger.error("❌ Network scanner nie jest zainicjalizowany")
             return None
         
+        if not self.app:
+            logger.error("❌ Brak aplikacji Flask - scanner_manager nie został zainicjalizowany")
+            return None
+        
         try:
             logger.info("🔍 Wykonuję ręczne skanowanie...")
-            devices = self.network_scanner.scan_network()
             
-            if devices:
-                self._update_devices(devices)
-                logger.info(f"✅ Ręczne skanowanie zakończone: {len(devices)} urządzeń")
-                return devices
-            else:
-                logger.warning("⚠ Ręczne skanowanie nie znalazło urządzeń")
-                return {}
+            # Wykonaj w kontekście aplikacji Flask
+            with self.app.app_context():
+                devices = self.network_scanner.scan_network()
+                
+                if devices:
+                    # Dla ręcznego skanowania natychmiast oznacz brakujące urządzenia jako offline
+                    self._update_devices(devices, immediate_offline=True)
+                    logger.info(f"✅ Ręczne skanowanie zakończone: {len(devices)} urządzeń")
+                    return devices
+                else:
+                    logger.warning("⚠ Ręczne skanowanie nie znalazło urządzeń")
+                    return {}
                 
         except Exception as e:
             logger.error(f"❌ Błąd ręcznego skanowania: {e}", exc_info=True)

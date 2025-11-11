@@ -179,6 +179,41 @@
             font-weight: bold;
         }
         
+        .protocol-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        {% if pdf_mode %}
+        .protocol-section {
+            display: block;
+        }
+        .protocol-chart-container {
+            display: none;
+        }
+        {% endif %}
+        
+        .protocol-chart-container {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+        
+        .protocol-legend .stats-table {
+            margin-bottom: 0;
+        }
+        
+        .protocol-color {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
         .report-footer {
             text-align: center;
             padding-top: 15px;
@@ -266,10 +301,6 @@
                 <td>{{ device.vendor or 'Nieznany' }}</td>
             </tr>
             <tr>
-                <td>Status</td>
-                <td>{{ 'Online' if device.is_online else 'Offline' }}</td>
-            </tr>
-            <tr>
                 <td>Ostatnia aktywność</td>
                 <td>{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') if device.last_seen else 'Nigdy' }}</td>
             </tr>
@@ -289,10 +320,6 @@
             <tr>
                 <td>Wysłane dane</td>
                 <td>{{ stats.total_traffic_out }}</td>
-            </tr>
-            <tr>
-                <td>Średnio dziennie</td>
-                <td>{{ stats.avg_traffic_per_day }}</td>
             </tr>
         </table>
         
@@ -351,17 +378,28 @@
             </tr>
         </table>
         
-        <!-- Top godziny aktywności -->
-        {% if stats.top_hours %}
-        <h2 class="section-title">Najbardziej aktywne godziny</h2>
-        <ul class="top-hours-list">
-            {% for hour, traffic in stats.top_hours %}
-            <li>
-                <span>{{ hour }}</span>
-                <strong>{{ traffic }}</strong>
-            </li>
-            {% endfor %}
-        </ul>
+        <!-- Protokoły -->
+        {% if stats.protocol_stats %}
+        <h2 class="section-title">Najczęściej używane protokoły</h2>
+        <div class="protocol-section">
+            <div class="protocol-chart-container">
+                <canvas id="protocolChart"></canvas>
+            </div>
+            <div class="protocol-legend">
+                <table class="stats-table">
+                    {% for protocol, data in stats.protocol_stats %}
+                    <tr>
+                        <td>
+                            <span class="protocol-color" style="background-color: {{ data.color }}"></span>
+                            {{ protocol }}
+                        </td>
+                        <td>{{ data.traffic }}</td>
+                        <td>{{ data.percentage }}%</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
         {% endif %}
         
         <!-- Stopka -->
@@ -370,5 +408,61 @@
             <p>LAN Monitor - System monitorowania sieci lokalnej</p>
         </div>
     </div>
+    
+    <!-- Chart.js dla wykresów -->
+    {% if not pdf_mode and stats.protocol_stats %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // Dane dla wykresu kołowego protokołów
+        const protocolData = {
+            labels: [
+                {% for protocol, data in stats.protocol_stats %}
+                '{{ protocol }}'{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for protocol, data in stats.protocol_stats %}
+                    {{ data.percentage }}{% if not loop.last %},{% endif %}
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    {% for protocol, data in stats.protocol_stats %}
+                    '{{ data.color }}'{% if not loop.last %},{% endif %}
+                    {% endfor %}
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        };
+        
+        const config = {
+            type: 'pie',
+            data: protocolData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.label + ': ' + context.parsed.toFixed(1) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        
+        // Renderuj wykres
+        const ctx = document.getElementById('protocolChart');
+        if (ctx) {
+            new Chart(ctx, config);
+        }
+    </script>
+    {% endif %}
 </body>
 </html>

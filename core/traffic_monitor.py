@@ -8,7 +8,7 @@ import threading
 import time
 from datetime import datetime
 from collections import defaultdict
-from scapy.all import sniff, IP
+from scapy.all import sniff, IP, TCP, UDP, ICMP
 from typing import Dict, Tuple
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,13 @@ class TrafficMonitor:
         self.thread = None
         
         # Statystyki dla zapisu do bazy (resetowane co 60s)
-        self.stats = defaultdict(lambda: {'bytes_in': 0, 'bytes_out': 0, 'packets_in': 0, 'packets_out': 0})
+        self.stats = defaultdict(lambda: {
+            'bytes_in': 0, 
+            'bytes_out': 0, 
+            'packets_in': 0, 
+            'packets_out': 0,
+            'protocols': defaultdict(int)
+        })
         self.stats_lock = threading.Lock()
         
         # Statystyki z ostatnich N sekund dla obliczania rate
@@ -55,6 +61,57 @@ class TrafficMonitor:
         except:
             return False
     
+    def _detect_protocol(self, packet) -> str:
+        """Wykrywa protokół z pakietu"""
+        try:
+            if TCP in packet:
+                sport = packet[TCP].sport
+                dport = packet[TCP].dport
+                
+                # Sprawdź popularne porty
+                if sport == 80 or dport == 80:
+                    return 'http'
+                elif sport == 443 or dport == 443:
+                    return 'https'
+                elif sport == 22 or dport == 22:
+                    return 'ssh'
+                elif sport == 21 or dport == 21:
+                    return 'ftp'
+                elif sport == 25 or dport == 25:
+                    return 'smtp'
+                elif sport == 53 or dport == 53:
+                    return 'dns'
+                elif sport == 3306 or dport == 3306:
+                    return 'mysql'
+                elif sport == 5432 or dport == 5432:
+                    return 'postgresql'
+                elif sport == 6379 or dport == 6379:
+                    return 'redis'
+                elif sport == 3389 or dport == 3389:
+                    return 'rdp'
+                else:
+                    return 'tcp'
+            elif UDP in packet:
+                sport = packet[UDP].sport
+                dport = packet[UDP].dport
+                
+                if sport == 53 or dport == 53:
+                    return 'dns'
+                elif sport == 67 or dport == 67 or sport == 68 or dport == 68:
+                    return 'dhcp'
+                elif sport == 123 or dport == 123:
+                    return 'ntp'
+                elif sport == 161 or dport == 161:
+                    return 'snmp'
+                else:
+                    return 'udp'
+            elif ICMP in packet:
+                return 'icmp'
+            else:
+                return 'other'
+        except:
+            return 'unknown'
+    
     def _packet_handler(self, packet):
         """Callback dla każdego przechwyconego pakietu"""
         try:
@@ -62,6 +119,7 @@ class TrafficMonitor:
                 src_ip = packet[IP].src
                 dst_ip = packet[IP].dst
                 packet_size = len(packet)
+                protocol = self._detect_protocol(packet)
                 
                 src_local = self._is_local_ip(src_ip)
                 dst_local = self._is_local_ip(dst_ip)
@@ -72,18 +130,22 @@ class TrafficMonitor:
                     if src_local and not dst_local:
                         self.stats[src_ip]['bytes_out'] += packet_size
                         self.stats[src_ip]['packets_out'] += 1
+                        self.stats[src_ip]['protocols'][protocol] += packet_size
                     
                     # Ruch przychodzący (do sieci lokalnej)
                     elif not src_local and dst_local:
                         self.stats[dst_ip]['bytes_in'] += packet_size
                         self.stats[dst_ip]['packets_in'] += 1
+                        self.stats[dst_ip]['protocols'][protocol] += packet_size
                     
                     # Ruch wewnętrzny (między urządzeniami lokalnymi)
                     elif src_local and dst_local:
                         self.stats[src_ip]['bytes_out'] += packet_size
                         self.stats[src_ip]['packets_out'] += 1
+                        self.stats[src_ip]['protocols'][protocol] += packet_size
                         self.stats[dst_ip]['bytes_in'] += packet_size
                         self.stats[dst_ip]['packets_in'] += 1
+                        self.stats[dst_ip]['protocols'][protocol] += packet_size
                 
                 # Aktualizuj rate_stats (dla real-time rate - okno 5s)
                 with self.rate_lock:
@@ -111,7 +173,13 @@ class TrafficMonitor:
         with self.stats_lock:
             stats_copy = {}
             for ip, stats in self.stats.items():
-                stats_copy[ip] = dict(stats)
+                stats_copy[ip] = {
+                    'bytes_in': stats['bytes_in'],
+                    'bytes_out': stats['bytes_out'],
+                    'packets_in': stats['packets_in'],
+                    'packets_out': stats['packets_out'],
+                    'protocols': dict(stats['protocols'])
+                }
             
             if reset:
                 # Resetuj liczniki dla zapisu do bazy

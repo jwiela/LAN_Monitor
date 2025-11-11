@@ -104,6 +104,7 @@ class InfluxDBWriter:
     def write_total_traffic(self, total_stats: Dict, timestamp: Optional[datetime] = None):
         """
         Zapisuje zsumowane statystyki ruchu ze wszystkich urządzeń
+        WAŻNE: Zapisuje przyrosty (delta) tak samo jak dla pojedynczych urządzeń
         
         Args:
             total_stats: Słownik z kluczami: total_bytes_in, total_bytes_out, 
@@ -118,7 +119,7 @@ class InfluxDBWriter:
             timestamp = datetime.utcnow()
         
         try:
-            # Point dla całkowitego ruchu przychodzącego
+            # Point dla całkowitego ruchu przychodzącego (przyrost - tak samo jak dla urządzeń)
             point_in = Point("total_traffic") \
                 .tag("direction", "in") \
                 .field("bytes", int(total_stats['total_bytes_in'])) \
@@ -126,7 +127,7 @@ class InfluxDBWriter:
                 .field("device_count", int(total_stats['device_count'])) \
                 .time(timestamp, WritePrecision.NS)
             
-            # Point dla całkowitego ruchu wychodzącego
+            # Point dla całkowitego ruchu wychodzącego (przyrost - tak samo jak dla urządzeń)
             point_out = Point("total_traffic") \
                 .tag("direction", "out") \
                 .field("bytes", int(total_stats['total_bytes_out'])) \
@@ -135,7 +136,9 @@ class InfluxDBWriter:
                 .time(timestamp, WritePrecision.NS)
             
             self.write_api.write(bucket=self.bucket, org=self.org, record=[point_in, point_out])
-            logger.info(f"✅ Zapisano całkowite statystyki ruchu do InfluxDB")
+            
+            logger.info(f"✅ Zapisano całkowite statystyki ruchu do InfluxDB "
+                       f"(↓{total_stats['total_bytes_in']/1024/1024:.2f}MB ↑{total_stats['total_bytes_out']/1024/1024:.2f}MB)")
             
         except Exception as e:
             logger.error(f"❌ Błąd zapisu całkowitych statystyk: {e}", exc_info=True)

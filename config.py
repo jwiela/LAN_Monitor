@@ -33,7 +33,7 @@ class Config:
     
     # Automatyczne skanowanie sieci
     NETWORK_SCAN_ENABLED = os.getenv('NETWORK_SCAN_ENABLED', 'true').lower() == 'true'
-    NETWORK_SCAN_INTERVAL = int(os.getenv('NETWORK_SCAN_INTERVAL', 300))  # sekundy (domyślnie 5 minut)
+    NETWORK_SCAN_INTERVAL = int(os.getenv('NETWORK_SCAN_INTERVAL', 60))  # sekundy (domyślnie 1 minuta)
     
     # InfluxDB (opcjonalnie)
     INFLUXDB_ENABLED = os.getenv('INFLUXDB_ENABLED', 'false').lower() == 'true'

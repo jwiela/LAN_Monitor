@@ -10,7 +10,8 @@
     {% include 'navbar.html' %}
     
     <div class="page-header">
-        <h1>🏠 Dashboard - Aktywne urządzenia</h1>
+        <h1>LAN Monitor</h1>
+        <p class="page-subtitle">Monitoring urządzeń w sieci lokalnej</p>
     </div>
 
     <!-- Komunikaty Flash -->
@@ -25,47 +26,12 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Statystyki -->
-        <div class="stats-grid stats-compact">
-            <div class="stat-card stat-compact">
-                <div class="stat-icon">📊</div>
-                <div class="stat-info">
-                    <h3>{{ total_devices }}</h3>
-                    <p>Wszystkie urządzenia</p>
-                </div>
-            </div>
-            
-            <div class="stat-card stat-compact stat-success">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <h3>{{ online_devices }}</h3>
-                    <p>Online</p>
-                </div>
-            </div>
-            
-            <div class="stat-card stat-compact stat-warning">
-                <div class="stat-icon">🆕</div>
-                <div class="stat-info">
-                    <h3>{{ new_devices }}</h3>
-                    <p>Nowe urządzenia</p>
-                </div>
-            </div>
-            
-            <div class="stat-card stat-compact stat-info">
-                <div class="stat-icon">🔔</div>
-                <div class="stat-info">
-                    <h3>{{ recent_alerts|length }}</h3>
-                    <p>Alerty</p>
-                </div>
-            </div>
-        </div>
-
         <!-- Lista urządzeń -->
         <div class="content-section">
             <div class="section-header">
                 <div class="section-header-content">
-                    <h2>Urządzenia w sieci</h2>
-                    <a href="{{ url_for('main.scan_network') }}" class="btn btn-scan">
+                    <h2>📱 Urządzenia w sieci</h2>
+                    <a href="{{ url_for('main.scan_network') }}" class="btn btn-primary">
                         🔍 Skanuj sieć
                     </a>
                 </div>
@@ -104,8 +70,8 @@
                                     <td class="device-vendor">{{ device.vendor or '-' }}</td>
                                     <td class="device-time">{{ device.last_seen.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td class="device-actions">
-                                        <a href="{{ url_for('main.device_detail', device_id=device.id) }}" class="btn-link-small">
-                                            Szczegóły →
+                                        <a href="{{ url_for('main.device_detail', device_id=device.id) }}" class="btn btn-secondary btn-sm">
+                                            Szczegóły
                                         </a>
                                     </td>
                                 </tr>
@@ -118,7 +84,7 @@
                     <div class="empty-icon">📡</div>
                     <h3>Brak urządzeń</h3>
                     <p>Nie wykryto jeszcze żadnych urządzeń w sieci.</p>
-                    <p>System skanowania rozpocznie pracę wkrótce.</p>
+                    <p class="text-muted">Uruchom skanowanie lub poczekaj na automatyczną detekcję.</p>
                 </div>
             {% endif %}
         </div>
@@ -129,80 +95,72 @@
                 <h2>📊 Całkowity ruch sieciowy</h2>
             </div>
             
-            <div class="stats-grid stats-compact">
-                <div class="stat-card stat-compact stat-info">
-                    <div class="stat-icon">⬇️</div>
-                    <div class="stat-info">
-                        <h3>{{ (total_stats.total_bytes_in / 1048576) | round(2) }} MB</h3>
-                        <p>Pobrano</p>
+            <div class="traffic-stats-grid">
+                <div class="traffic-stat-item">
+                    <div class="traffic-stat-icon">📥</div>
+                    <div class="traffic-stat-content">
+                        <div class="traffic-stat-label">Pobieranie</div>
+                        <div class="traffic-stat-value" id="total-download-rate">{{ "%.2f"|format(total_stats.download_rate) }} KB/s</div>
                     </div>
                 </div>
                 
-                <div class="stat-card stat-compact stat-success">
-                    <div class="stat-icon">⬆️</div>
-                    <div class="stat-info">
-                        <h3>{{ (total_stats.total_bytes_out / 1048576) | round(2) }} MB</h3>
-                        <p>Wysłano</p>
+                <div class="traffic-stat-item">
+                    <div class="traffic-stat-icon">📤</div>
+                    <div class="traffic-stat-content">
+                        <div class="traffic-stat-label">Wysyłanie</div>
+                        <div class="traffic-stat-value" id="total-upload-rate">{{ "%.2f"|format(total_stats.upload_rate) }} KB/s</div>
                     </div>
                 </div>
                 
-                <div class="stat-card stat-compact stat-warning">
-                    <div class="stat-icon">📦</div>
-                    <div class="stat-info">
-                        <h3>{{ total_stats.total_packets_in + total_stats.total_packets_out }}</h3>
-                        <p>Pakiety</p>
-                    </div>
-                </div>
-                
-                <div class="stat-card stat-compact">
-                    <div class="stat-icon">👥</div>
-                    <div class="stat-info">
-                        <h3>{{ total_stats.device_count }}</h3>
-                        <p>Aktywne</p>
+                <div class="traffic-stat-item">
+                    <div class="traffic-stat-icon">👥</div>
+                    <div class="traffic-stat-content">
+                        <div class="traffic-stat-label">Aktywne urządzenia</div>
+                        <div class="traffic-stat-value" id="total-device-count">{{ total_stats.device_count }}</div>
                     </div>
                 </div>
             </div>
             
             <!-- Wykres z Grafany -->
-            <div style="margin-top: 15px;">
+            <div class="grafana-container">
                 <iframe 
                     src="http://192.168.1.8:3000/d-solo/adptrmz/traffic-all-devices?orgId=1&from=now-24h&to=now&timezone=browser&panelId=panel-3&__feature.dashboardSceneSolo=true&refresh=30s" 
                     width="100%" 
                     height="300" 
-                    frameborder="0"
-                    style="border-radius: 8px; border: 1px solid #e2e8f0;">
+                    frameborder="0">
                 </iframe>
-                <p style="text-align: center; margin-top: 8px; color: #666; font-size: 13px;">
-                    📊 Wykres całkowitego ruchu w czasie rzeczywistym (ostatnie 24h)
+                <p class="grafana-caption">
+                    Wykres całkowitego ruchu w czasie rzeczywistym (ostatnie 24h)
                 </p>
             </div>
         </div>
-
-        <!-- Alerty -->
-        {% if recent_alerts %}
-        <div class="content-section">
-            <div class="section-header">
-                <h2>Ostatnie alerty</h2>
-            </div>
-            
-            <div class="alerts-list">
-                {% for alert in recent_alerts %}
-                    <div class="alert-item alert-{{ alert.severity }}">
-                        <div class="alert-icon">
-                            {% if alert.severity == 'critical' %}⚠️
-                            {% elif alert.severity == 'warning' %}⚡
-                            {% else %}ℹ️{% endif %}
-                        </div>
-                        <div class="alert-content">
-                            <strong>{{ alert.alert_type }}</strong>
-                            <p>{{ alert.message }}</p>
-                            <small>{{ alert.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
     </div>
+    
+    <script>
+        // Funkcja odświeżająca całkowite statystyki ruchu
+        function updateTotalStats() {
+            fetch('{{ url_for("main.total_stats_api") }}')
+                .then(response => response.json())
+                .then(data => {
+                    // Aktualizuj prędkość pobierania
+                    document.getElementById('total-download-rate').textContent = data.download_rate_formatted;
+                    
+                    // Aktualizuj prędkość wysyłania
+                    document.getElementById('total-upload-rate').textContent = data.upload_rate_formatted;
+                    
+                    // Aktualizuj liczbę aktywnych urządzeń
+                    document.getElementById('total-device-count').textContent = data.device_count;
+                })
+                .catch(error => {
+                    console.error('Błąd pobierania statystyk:', error);
+                });
+        }
+        
+        // Odświeżaj statystyki co 2 sekundy (tak samo jak dla urządzeń)
+        setInterval(updateTotalStats, 2000);
+        
+        // Pierwsze odświeżenie po załadowaniu strony
+        setTimeout(updateTotalStats, 1000);
+    </script>
 </body>
 </html>

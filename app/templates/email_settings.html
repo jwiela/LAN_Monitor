@@ -222,20 +222,8 @@
                             <label for="notify_new_device">🆕 Nowe urządzenia w sieci</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" name="notify_device_offline" id="notify_device_offline" checked>
-                            <label for="notify_device_offline">⚠️ Urządzenie offline</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" name="notify_device_online" id="notify_device_online" checked>
-                            <label for="notify_device_online">✅ Urządzenie ponownie online</label>
-                        </div>
-                        <div class="checkbox-item">
                             <input type="checkbox" name="notify_unusual_traffic" id="notify_unusual_traffic">
                             <label for="notify_unusual_traffic">📊 Nietypowy ruch sieciowy</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" name="notify_high_traffic" id="notify_high_traffic">
-                            <label for="notify_high_traffic">🔥 Wysoki ruch sieciowy</label>
                         </div>
                     </div>
                 </div>
@@ -270,10 +258,7 @@
                             <td>
                                 <div class="notification-checks">
                                     {% if recipient.notify_new_device %}🆕{% endif %}
-                                    {% if recipient.notify_device_offline %}⚠️{% endif %}
-                                    {% if recipient.notify_device_online %}✅{% endif %}
                                     {% if recipient.notify_unusual_traffic %}📊{% endif %}
-                                    {% if recipient.notify_high_traffic %}🔥{% endif %}
                                 </div>
                             </td>
                             <td>
@@ -286,7 +271,7 @@
                             <td>{{ recipient.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>
                                 <div class="recipient-actions">
-                                    <button onclick="openEditModal({{ recipient.id }}, '{{ recipient.email }}', '{{ recipient.name or '' }}', {{ recipient.notify_new_device|tojson }}, {{ recipient.notify_device_offline|tojson }}, {{ recipient.notify_device_online|tojson }}, {{ recipient.notify_unusual_traffic|tojson }}, {{ recipient.notify_high_traffic|tojson }})" 
+                                    <button onclick="openEditModal({{ recipient.id }}, '{{ recipient.email }}', '{{ recipient.name or '' }}', {{ recipient.notify_new_device|tojson }}, {{ recipient.notify_unusual_traffic|tojson }})" 
                                             class="btn btn-secondary btn-icon">✏️</button>
                                     <form method="POST" action="{{ url_for('main.toggle_email_recipient', recipient_id=recipient.id) }}" style="display: inline;">
                                         <button type="submit" class="btn btn-secondary btn-icon">
@@ -338,20 +323,8 @@
                         <span>🆕 Nowe urządzenia w sieci</span>
                     </label>
                     <label>
-                        <input type="checkbox" name="notify_device_offline" id="edit_notify_device_offline">
-                        <span>⚠️ Urządzenie offline</span>
-                    </label>
-                    <label>
-                        <input type="checkbox" name="notify_device_online" id="edit_notify_device_online">
-                        <span>✅ Urządzenie ponownie online</span>
-                    </label>
-                    <label>
                         <input type="checkbox" name="notify_unusual_traffic" id="edit_notify_unusual_traffic">
                         <span>📊 Nietypowy ruch sieciowy</span>
-                    </label>
-                    <label>
-                        <input type="checkbox" name="notify_high_traffic" id="edit_notify_high_traffic">
-                        <span>🔥 Wysoki ruch sieciowy</span>
                     </label>
                 </div>
                 
@@ -364,17 +337,14 @@
     </div>
 
     <script>
-        function openEditModal(id, email, name, new_device, offline, online, unusual, high) {
+        function openEditModal(id, email, name, new_device, unusual) {
             const form = document.getElementById('editRecipientForm');
             form.action = `/settings/email/recipients/${id}/edit`;
             
             document.getElementById('edit_email').value = email;
             document.getElementById('edit_name').value = name;
             document.getElementById('edit_notify_new_device').checked = new_device;
-            document.getElementById('edit_notify_device_offline').checked = offline;
-            document.getElementById('edit_notify_device_online').checked = online;
             document.getElementById('edit_notify_unusual_traffic').checked = unusual;
-            document.getElementById('edit_notify_high_traffic').checked = high;
             
             document.getElementById('editRecipientModal').classList.add('active');
         }

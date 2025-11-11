@@ -133,6 +133,54 @@ def mark_alert_read(alert_id):
     return jsonify({'status': 'success'})
 
 
+@main_bp.route('/alerts/mark-all-read')
+@login_required
+def mark_all_alerts_read():
+    """Oznacz wszystkie alerty jako przeczytane"""
+    Alert.query.filter_by(is_read=False).update({'is_read': True})
+    db.session.commit()
+    flash('Wszystkie alerty oznaczone jako przeczytane', 'success')
+    return redirect(request.referrer or url_for('main.dashboard'))
+
+
+@main_bp.route('/api/alerts/recent')
+@login_required
+def get_recent_alerts_api():
+    """API endpoint zwracający ostatnie alerty dla dropdown"""
+    from flask import jsonify
+    from datetime import datetime
+    
+    # Pobierz 10 najnowszych alertów
+    alerts = Alert.query.order_by(desc(Alert.created_at)).limit(10).all()
+    
+    alerts_data = []
+    for alert in alerts:
+        # Ikona w zależności od typu alertu
+        icon = '🆕' if alert.alert_type == 'new_device' else '🔔'
+        
+        # Formatowanie czasu
+        time_diff = datetime.now() - alert.created_at
+        if time_diff.seconds < 60:
+            time_str = 'Przed chwilą'
+        elif time_diff.seconds < 3600:
+            time_str = f'{time_diff.seconds // 60} min temu'
+        elif time_diff.seconds < 86400:
+            time_str = f'{time_diff.seconds // 3600} godz. temu'
+        else:
+            time_str = f'{time_diff.days} dni temu'
+        
+        alerts_data.append({
+            'id': alert.id,
+            'alert_type': alert.alert_type.replace('_', ' ').title(),
+            'message': alert.message,
+            'time': time_str,
+            'is_read': alert.is_read,
+            'icon': icon
+        })
+    
+    return jsonify({'alerts': alerts_data})
+
+
 @main_bp.route('/settings/email')
 @login_required
 def email_settings():
@@ -349,27 +397,15 @@ def mark_alerts_read():
 @login_required
 def scan_network():
     """Uruchom skanowanie sieci w tle"""
+    from core.scanner_manager import scanner_manager
+    
     def run_scan_task():
         """Zadanie skanowania w tle"""
-        from app import create_app
-        from core.network_scanner import NetworkScanner
-        
-        app = create_app()
-        with app.app_context():
-            try:
-                scanner = NetworkScanner()
-                # Automatyczne wykrycie zakresu sieci
-                network_range = scanner.get_network_interface_range()
-                scanner.network_range = network_range
-                
-                # Wykonaj skanowanie
-                devices = scanner.scan_network()
-                
-                # Aktualizuj bazę danych
-                if devices:
-                    scanner.update_database(devices)
-            except Exception as e:
-                print(f"❌ Błąd podczas skanowania: {e}")
+        try:
+            # Użyj istniejącego scanner_manager zamiast tworzyć nowy scanner
+            scanner_manager.trigger_scan()
+        except Exception as e:
+            logger.error(f"❌ Błąd podczas ręcznego skanowania: {e}", exc_info=True)
     
     # Uruchom skanowanie w osobnym wątku
     thread = threading.Thread(target=run_scan_task)
@@ -432,6 +468,27 @@ def device_stats_api(device_id):
     return jsonify(response)
 
 
+@main_bp.route('/api/total/stats')
+@login_required
+def total_stats_api():
+    """API endpoint zwracający aktualne całkowite statystyki ruchu (dla real-time update)"""
+    from flask import jsonify
+    from core.traffic_manager import traffic_manager
+    
+    # Pobierz całkowite statystyki z prędkościami
+    total_stats = traffic_manager.get_total_stats()
+    
+    response = {
+        'download_rate': total_stats['download_rate'],
+        'upload_rate': total_stats['upload_rate'],
+        'download_rate_formatted': f"{total_stats['download_rate']:.2f} KB/s",
+        'upload_rate_formatted': f"{total_stats['upload_rate']:.2f} KB/s",
+        'device_count': total_stats['device_count']
+    }
+    
+    return jsonify(response)
+
+
 @main_bp.route('/settings/email/recipients/add', methods=['POST'])
 @login_required
 def add_email_recipient():
@@ -458,20 +515,17 @@ def add_email_recipient():
         
         # Pobierz preferencje powiadomień
         notify_new_device = request.form.get('notify_new_device') == 'on'
-        notify_device_offline = request.form.get('notify_device_offline') == 'on'
-        notify_device_online = request.form.get('notify_device_online') == 'on'
         notify_unusual_traffic = request.form.get('notify_unusual_traffic') == 'on'
-        notify_high_traffic = request.form.get('notify_high_traffic') == 'on'
         
         # Utwórz nowego odbiorcę
         recipient = EmailRecipient(
             email=email,
             name=name,
             notify_new_device=notify_new_device,
-            notify_device_offline=notify_device_offline,
-            notify_device_online=notify_device_online,
+            notify_device_offline=False,
+            notify_device_online=False,
             notify_unusual_traffic=notify_unusual_traffic,
-            notify_high_traffic=notify_high_traffic
+            notify_high_traffic=False
         )
         
         db.session.add(recipient)
@@ -487,10 +541,7 @@ def add_email_recipient():
                                           recipient_email=email,
                                           current_date=datetime.now().strftime('%d.%m.%Y %H:%M'),
                                           notify_new_device=notify_new_device,
-                                          notify_device_offline=notify_device_offline,
-                                          notify_device_online=notify_device_online,
-                                          notify_unusual_traffic=notify_unusual_traffic,
-                                          notify_high_traffic=notify_high_traffic)
+                                          notify_unusual_traffic=notify_unusual_traffic)
                 
                 subject = "Witaj w systemie LAN Monitor!"
                 welcome_sent = email_manager.send_email(subject, html_body, to_email=email, html=True)
@@ -528,10 +579,10 @@ def edit_email_recipient(recipient_id):
         
         # Aktualizuj preferencje
         recipient.notify_new_device = request.form.get('notify_new_device') == 'on'
-        recipient.notify_device_offline = request.form.get('notify_device_offline') == 'on'
-        recipient.notify_device_online = request.form.get('notify_device_online') == 'on'
+        recipient.notify_device_offline = False
+        recipient.notify_device_online = False
         recipient.notify_unusual_traffic = request.form.get('notify_unusual_traffic') == 'on'
-        recipient.notify_high_traffic = request.form.get('notify_high_traffic') == 'on'
+        recipient.notify_high_traffic = False
         
         db.session.commit()
         flash(f'✅ Zaktualizowano preferencje dla {recipient.email}', 'success')
@@ -920,7 +971,7 @@ def calculate_device_stats(device, activities, period_days):
             'avg_traffic_out': 0,
             'uptime_percentage': 0,
             'total_records': 0,
-            'top_hours': []
+            'protocol_stats': []
         }
     
     # Podstawowe statystyki
@@ -931,17 +982,45 @@ def calculate_device_stats(device, activities, period_days):
     traffic_in_list = [a.bytes_received for a in activities if a.bytes_received > 0]
     traffic_out_list = [a.bytes_sent for a in activities if a.bytes_sent > 0]
     
-    # Analiza godzin aktywności
-    hour_traffic = {}
+    # Analiza protokołów (jeśli dostępne)
+    protocol_traffic = {}
     for activity in activities:
-        hour = activity.timestamp.hour
-        if hour not in hour_traffic:
-            hour_traffic[hour] = 0
-        hour_traffic[hour] += activity.bytes_received + activity.bytes_sent
+        if hasattr(activity, 'protocol_stats') and activity.protocol_stats:
+            try:
+                import json
+                protocols = json.loads(activity.protocol_stats)
+                for protocol, bytes_count in protocols.items():
+                    if protocol not in protocol_traffic:
+                        protocol_traffic[protocol] = 0
+                    protocol_traffic[protocol] += bytes_count
+            except:
+                pass
     
-    # Top 5 najbardziej aktywnych godzin
-    top_hours = sorted(hour_traffic.items(), key=lambda x: x[1], reverse=True)[:5]
-    top_hours_formatted = [(f"{h:02d}:00-{h:02d}:59", format_bytes(traffic)) for h, traffic in top_hours]
+    # Przygotuj statystyki protokołów dla wykresu
+    protocol_stats = []
+    if protocol_traffic:
+        # Sortuj protokoły według ruchu
+        sorted_protocols = sorted(protocol_traffic.items(), key=lambda x: x[1], reverse=True)
+        
+        # Kolory dla wykresów
+        colors = [
+            '#667eea', '#764ba2', '#f093fb', '#4facfe',
+            '#43e97b', '#fa709a', '#fee140', '#30cfd0',
+            '#a8edea', '#fed6e3', '#c471ed', '#12c2e9'
+        ]
+        
+        total_protocol_traffic = sum(protocol_traffic.values())
+        
+        for i, (protocol, bytes_count) in enumerate(sorted_protocols[:10]):  # Top 10
+            percentage = (bytes_count / total_protocol_traffic * 100) if total_protocol_traffic > 0 else 0
+            protocol_stats.append((
+                protocol.upper(),
+                {
+                    'traffic': format_bytes(bytes_count),
+                    'percentage': round(percentage, 1),
+                    'color': colors[i % len(colors)]
+                }
+            ))
     
     # Oblicz uptime (procent czasu z aktywnością)
     # Zakładamy że każdy rekord = 1 minuta aktywności
@@ -965,5 +1044,6 @@ def calculate_device_stats(device, activities, period_days):
         'avg_traffic_out': format_bytes(sum(traffic_out_list) / len(traffic_out_list)) if traffic_out_list else '0 B',
         'uptime_percentage': round(uptime_percentage, 2),
         'total_records': len(activities),
-        'top_hours': top_hours_formatted
+        'protocol_stats': protocol_stats
     }
+

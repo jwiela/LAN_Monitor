@@ -12,6 +12,32 @@
         </a>
     </div>
     <div class="topbar-right">
+        <!-- Dropdown alertów -->
+        <div class="topbar-alerts">
+            <button class="alerts-toggle" onclick="toggleAlertsDropdown()">
+                🔔
+                {% set unread_count = get_unread_alerts_count() %}
+                {% if unread_count and unread_count > 0 %}
+                    <span class="alerts-badge">{{ unread_count }}</span>
+                {% endif %}
+            </button>
+            <div id="alerts-dropdown-top" class="alerts-dropdown-menu">
+                <div class="alerts-dropdown-header">
+                    <strong>Powiadomienia</strong>
+                    {% if unread_count and unread_count > 0 %}
+                        <a href="{{ url_for('main.mark_all_alerts_read') }}" class="mark-all-read" onclick="clearHiddenAlerts()">Oznacz wszystkie jako przeczytane</a>
+                    {% endif %}
+                </div>
+                <div class="alerts-dropdown-content" id="alerts-list">
+                    <div class="alerts-loading">Ładowanie...</div>
+                </div>
+                <div class="alerts-dropdown-footer">
+                    <a href="{{ url_for('main.alerts_page', period='all') }}">Zobacz wszystkie alerty →</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dropdown użytkownika -->
         <div class="topbar-user">
             <button class="dropdown-toggle user-dropdown-toggle" onclick="toggleUserDropdown()">
                 👤 {{ current_user.username }}
@@ -121,23 +147,121 @@
         const arrow = document.querySelector('.user-dropdown-toggle .dropdown-arrow');
         
         dropdown.classList.toggle('show');
-        
         if (arrow) {
             arrow.classList.toggle('rotated');
         }
     }
     
-    // Zamknij dropdown po kliknięciu poza nim
+    function toggleAlertsDropdown() {
+        const dropdown = document.getElementById('alerts-dropdown-top');
+        dropdown.classList.toggle('show');
+        
+        // Załaduj alerty przy pierwszym otwarciu
+        if (dropdown.classList.contains('show')) {
+            loadAlerts();
+        }
+    }
+    
+    function loadAlerts() {
+        fetch('{{ url_for("main.get_recent_alerts_api") }}')
+            .then(response => response.json())
+            .then(data => {
+                const alertsList = document.getElementById('alerts-list');
+                
+                // Pobierz listę ukrytych alertów z localStorage
+                const hiddenAlerts = JSON.parse(localStorage.getItem('hiddenAlerts') || '[]');
+                
+                if (data.alerts && data.alerts.length > 0) {
+                    // Filtruj alerty - nie pokazuj ukrytych
+                    const visibleAlerts = data.alerts.filter(alert => !hiddenAlerts.includes(alert.id));
+                    
+                    if (visibleAlerts.length > 0) {
+                        alertsList.innerHTML = visibleAlerts.map(alert => `
+                            <div class="alert-item-wrapper ${alert.is_read ? '' : 'unread'}">
+                                <a href="{{ url_for('main.alerts_page', period='all') }}?alert_id=${alert.id}" 
+                                   class="alert-item-link"
+                                   onclick="markAlertRead(${alert.id})">
+                                    <div class="alert-item-icon">${alert.icon}</div>
+                                    <div class="alert-item-content">
+                                        <div class="alert-item-title">${alert.alert_type}</div>
+                                        <div class="alert-item-message">${alert.message}</div>
+                                        <div class="alert-item-time">${alert.time}</div>
+                                    </div>
+                                </a>
+                                <button class="alert-item-delete" onclick="deleteAlertFromDropdown(event, ${alert.id})" title="Usuń z listy">
+                                    ✕
+                                </button>
+                            </div>
+                        `).join('');
+                    } else {
+                        alertsList.innerHTML = '<div class="alerts-empty">Brak nowych alertów</div>';
+                    }
+                } else {
+                    alertsList.innerHTML = '<div class="alerts-empty">Brak nowych alertów</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Błąd ładowania alertów:', error);
+                document.getElementById('alerts-list').innerHTML = '<div class="alerts-empty">Błąd ładowania alertów</div>';
+            });
+    }
+    
+    function deleteAlertFromDropdown(event, alertId) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Dodaj do listy ukrytych alertów w localStorage
+        const hiddenAlerts = JSON.parse(localStorage.getItem('hiddenAlerts') || '[]');
+        if (!hiddenAlerts.includes(alertId)) {
+            hiddenAlerts.push(alertId);
+            localStorage.setItem('hiddenAlerts', JSON.stringify(hiddenAlerts));
+        }
+        
+        // Usuń wizualnie z dropdownu
+        const alertWrapper = event.target.closest('.alert-item-wrapper');
+        alertWrapper.style.opacity = '0';
+        alertWrapper.style.transform = 'translateX(20px)';
+        
+        setTimeout(() => {
+            alertWrapper.remove();
+            
+            // Sprawdź czy są jeszcze jakieś alerty
+            const alertsList = document.getElementById('alerts-list');
+            if (alertsList.querySelectorAll('.alert-item-wrapper').length === 0) {
+                alertsList.innerHTML = '<div class="alerts-empty">Brak nowych alertów</div>';
+            }
+        }, 200);
+        
+        // Oznacz jako przeczytany (żeby zniknął z licznika)
+        fetch(`{{ url_for('main.mark_alert_read', alert_id=0) }}`.replace('0', alertId), {
+            method: 'POST',
+        }).catch(error => console.error('Błąd oznaczania alertu:', error));
+    }
+    
+    function markAlertRead(alertId) {
+        fetch(`{{ url_for('main.mark_alert_read', alert_id=0) }}`.replace('0', alertId), {
+            method: 'POST',
+        }).catch(error => console.error('Błąd oznaczania alertu:', error));
+    }
+    
+    function clearHiddenAlerts() {
+        // Wyczyść listę ukrytych alertów z localStorage
+        localStorage.removeItem('hiddenAlerts');
+    }
+    
+    // Zamknij dropdowny przy kliknięciu poza nimi
     document.addEventListener('click', function(event) {
-        if (!event.target.closest('.topbar-user')) {
-            const dropdown = document.getElementById('user-dropdown');
-            const arrow = document.querySelector('.user-dropdown-toggle .dropdown-arrow');
-            if (dropdown) {
-                dropdown.classList.remove('show');
-            }
-            if (arrow) {
-                arrow.classList.remove('rotated');
-            }
+        const alertsDropdown = document.getElementById('alerts-dropdown-top');
+        const alertsToggle = document.querySelector('.alerts-toggle');
+        const userDropdown = document.getElementById('user-dropdown');
+        const userToggle = document.querySelector('.user-dropdown-toggle');
+        
+        if (alertsDropdown && !alertsDropdown.contains(event.target) && !alertsToggle.contains(event.target)) {
+            alertsDropdown.classList.remove('show');
+        }
+        
+        if (userDropdown && !userDropdown.contains(event.target) && !userToggle.contains(event.target)) {
+            userDropdown.classList.remove('show');
         }
     });
     
