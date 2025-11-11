@@ -27,8 +27,13 @@ class Config:
     
     # Network
     NETWORK_INTERFACE = os.getenv('NETWORK_INTERFACE', 'eth0')
+    NETWORK_RANGE = os.getenv('NETWORK_RANGE', '192.168.1.0/24')
     SCAN_INTERVAL = int(os.getenv('SCAN_INTERVAL', 300))  # sekundy
     TRAFFIC_UPDATE_INTERVAL = int(os.getenv('TRAFFIC_UPDATE_INTERVAL', 60))  # sekundy
+    
+    # Automatyczne skanowanie sieci
+    NETWORK_SCAN_ENABLED = os.getenv('NETWORK_SCAN_ENABLED', 'true').lower() == 'true'
+    NETWORK_SCAN_INTERVAL = int(os.getenv('NETWORK_SCAN_INTERVAL', 300))  # sekundy (domyślnie 5 minut)
     
     # InfluxDB (opcjonalnie)
     INFLUXDB_ENABLED = os.getenv('INFLUXDB_ENABLED', 'false').lower() == 'true'

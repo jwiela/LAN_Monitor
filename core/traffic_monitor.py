@@ -201,7 +201,7 @@ class TrafficMonitor:
             # Usuń nieaktywne IP
             for ip in ips_to_reset:
                 del self.rate_stats[ip]
-                
+            
             return rates
 
 

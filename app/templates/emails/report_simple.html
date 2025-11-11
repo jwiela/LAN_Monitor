@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border: 1px solid #ddd;
+        }
+        .header {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin: -30px -30px 20px -30px;
+        }
+        .device-info {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .device-info p {
+            margin: 5px 0;
+        }
+        .stats-grid {
+            display: table;
+            width: 100%;
+            margin: 20px 0;
+        }
+        .stats-row {
+            display: table-row;
+        }
+        .stat-box {
+            display: table-cell;
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+            width: 50%;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .attachment-notice {
+            background: #e8f4f8;
+            border: 1px solid #b3d9e8;
+            padding: 15px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 15px;
+            color: #6c757d;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin:0">Raport Monitoringu Urządzenia</h1>
+            <p style="margin:5px 0 0 0">{{ period_name|capitalize }}</p>
+        </div>
+        
+        <div class="device-info">
+            <p><strong>Urządzenie:</strong> {{ device_name }}</p>
+            <p><strong>Adres IP:</strong> {{ device_ip }}</p>
+            <p><strong>Okres:</strong> {{ period_days }} dni</p>
+            <p><strong>Wygenerowano:</strong> {{ generated_at }}</p>
+        </div>
+        
+        <h3 style="color:#667eea; margin-top:25px">Statystyki ruchu sieciowego</h3>
+        
+        <div class="stats-grid">
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-label">Pobieranie</div>
+                    <div class="stat-value">{{ stats.total_download }}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Wysyłanie</div>
+                    <div class="stat-value">{{ stats.total_upload }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-label">Całkowity ruch</div>
+                    <div class="stat-value">{{ stats.total_traffic }}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Aktywne sesje</div>
+                    <div class="stat-value">{{ stats.active_sessions }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="attachment-notice">
+            <p style="font-size:32px; margin:0 0 10px 0">📎</p>
+            <p style="margin:0"><strong>Szczegółowy raport PDF w załączniku</strong></p>
+            <p style="margin:5px 0 0 0; font-size:13px; color:#666">
+                Pełna analiza ruchu sieciowego znajduje się w załączonym pliku PDF
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p><strong>LAN Monitor</strong> - System Monitorowania Sieci</p>
+            <p>Ten email został wygenerowany automatycznie</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border: 1px solid #ddd;
+        }
+        .header {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin: -30px -30px 20px -30px;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .alert-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            margin: 3px;
+            background: #e9ecef;
+            border: 1px solid #dee2e6;
+            font-size: 13px;
+        }
+        .footer {
+            text-align: center;
+            padding: 15px;
+            color: #6c757d;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin:0">LAN Monitor</h1>
+            <p style="margin:5px 0 0 0">System Monitorowania Sieci</p>
+        </div>
+        
+        <h2 style="color: #667eea">Witamy w systemie!</h2>
+        
+        <p>Cześć{% if recipient_name %} <strong>{{ recipient_name }}</strong>{% endif %}!</p>
+        
+        <p>Twój adres email <strong style="color: #667eea">{{ recipient_email }}</strong> został pomyślnie dodany do systemu powiadomień LAN Monitor. Od teraz będziesz na bieżąco informowany o wszystkich ważnych wydarzeniach w Twojej sieci!</p>
+    
+        <div class="info-box">
+            <h3 style="margin-top:0; color:#667eea">Twoje powiadomienia</h3>
+            <p>Będziesz otrzymywać powiadomienia o:</p>
+            
+            {% if notify_new_device %}
+            <div class="alert-badge">Nowe urządzenia w sieci</div>
+            {% endif %}
+            
+            {% if notify_device_offline %}
+            <div class="alert-badge">Urządzenie offline</div>
+            {% endif %}
+            
+            {% if notify_device_online %}
+            <div class="alert-badge">Urządzenie ponownie online</div>
+            {% endif %}
+            
+            {% if notify_unusual_traffic %}
+            <div class="alert-badge">Nietypowy ruch sieciowy</div>
+            {% endif %}
+            
+            {% if notify_high_traffic %}
+            <div class="alert-badge">Wysoki ruch sieciowy</div>
+            {% endif %}
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-top:0; color:#667eea">Co oferuje LAN Monitor?</h3>
+            <ul>
+                <li><strong>Monitorowanie w czasie rzeczywistym</strong> - Ciągłe skanowanie wszystkich urządzeń</li>
+                <li><strong>Analiza ruchu sieciowego</strong> - Wykrywanie anomalii i nietypowych wzorców</li>
+                <li><strong>Natychmiastowe powiadomienia</strong> - Błyskawiczne alerty o zmianach</li>
+                <li><strong>Szczegółowe raporty</strong> - Kompletna historia aktywności</li>
+            </ul>
+        </div>
+        
+        <div style="background: #667eea; color: white; padding: 15px; text-align: center; margin: 20px 0;">
+            <p style="margin:0"><strong>System jest już aktywny!</strong></p>
+            <p style="margin:5px 0 0 0">Od teraz będziesz otrzymywać powiadomienia o wszystkich ważnych wydarzeniach.</p>
+        </div>
+        
+        <p style="color: #6c757d; font-size: 14px; text-align: center;">
+            Jeśli otrzymałeś ten email przez pomyłkę lub masz pytania,<br>
+            skontaktuj się z administratorem systemu.
+        </p>
+        
+        <div class="footer">
+            <p><strong>LAN Monitor</strong> - System Monitorowania Sieci</p>
+            <p>Data: {{ current_date }}</p>
+        </div>
+    </div>
+</body>
+</html>

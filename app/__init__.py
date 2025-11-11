@@ -62,6 +62,10 @@ def create_app(config_name='default'):
     from core.traffic_manager import traffic_manager
     traffic_manager.init_app(app)
     
+    # Inicjalizuj scanner manager
+    from core.scanner_manager import scanner_manager
+    scanner_manager.init_app(app)
+    
     with app.app_context():
         # Importuj modele
         from app import models

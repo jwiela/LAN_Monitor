@@ -66,7 +66,6 @@ class EmailManager:
             msg['Subject'] = subject
             msg['From'] = self.config.MAIL_DEFAULT_SENDER or self.config.MAIL_USERNAME
             msg['To'] = recipient
-            msg['Date'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')
             
             # Dodaj treść
             if html:
@@ -82,12 +81,18 @@ class EmailManager:
                 msg.attach(part)
             
             # Połącz się z serwerem SMTP
-            with smtplib.SMTP(self.config.MAIL_SERVER, self.config.MAIL_PORT) as server:
+            with smtplib.SMTP(self.config.MAIL_SERVER, self.config.MAIL_PORT, timeout=30) as server:
+                server.set_debuglevel(0)
+                
                 if self.config.MAIL_USE_TLS:
                     server.starttls()
                 
                 server.login(self.config.MAIL_USERNAME, self.config.MAIL_PASSWORD)
-                server.send_message(msg)
+                result = server.send_message(msg)
+                
+                if result:
+                    logger.warning(f"⚠️ Serwer SMTP zwrócił błędy dla niektórych odbiorców: {result}")
+                    return False
             
             logger.info(f"✅ Email wysłany: '{subject}' do {recipient}")
             return True
@@ -125,18 +130,15 @@ class EmailManager:
         
         subject = subject_map.get(alert_type, '🔔 Alert z LAN Monitor')
         
-        # Przygotuj treść HTML
+        # Przygotuj treść HTML z template
         html_body = self._create_alert_html(alert_type, message, device_info)
-        
-        # Przygotuj treść tekstową (fallback)
-        text_body = self._create_alert_text(alert_type, message, device_info)
         
         # Wyślij email z treścią HTML
         return self.send_email(subject, html_body, html=True)
     
     def _create_alert_html(self, alert_type: str, message: str, device_info: Optional[dict]) -> str:
         """
-        Stwórz HTML dla alertu
+        Stwórz HTML dla alertu używając template
         
         Args:
             alert_type: Typ alertu
@@ -146,6 +148,8 @@ class EmailManager:
         Returns:
             str: HTML wiadomości
         """
+        from flask import render_template
+        
         # Emoji dla różnych typów alertów
         emoji_map = {
             'new_device': '🆕',
@@ -155,199 +159,16 @@ class EmailManager:
             'high_traffic': '🔥',
         }
         
-        emoji = emoji_map.get(alert_type, '🔔')
+        alert_emoji = emoji_map.get(alert_type, '🔔')
         
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                .header {{
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 30px;
-                    border-radius: 10px 10px 0 0;
-                    text-align: center;
-                }}
-                .header h1 {{
-                    margin: 0;
-                    font-size: 24px;
-                }}
-                .content {{
-                    background: white;
-                    padding: 30px;
-                    border: 1px solid #e2e8f0;
-                    border-top: none;
-                    border-radius: 0 0 10px 10px;
-                }}
-                .alert-box {{
-                    background: #f7fafc;
-                    border-left: 4px solid #667eea;
-                    padding: 20px;
-                    margin: 20px 0;
-                    border-radius: 5px;
-                }}
-                .device-info {{
-                    background: #fff;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin: 15px 0;
-                }}
-                .device-info table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                }}
-                .device-info td {{
-                    padding: 8px;
-                    border-bottom: 1px solid #f1f5f9;
-                }}
-                .device-info td:first-child {{
-                    font-weight: 600;
-                    color: #64748b;
-                    width: 120px;
-                }}
-                .footer {{
-                    text-align: center;
-                    padding: 20px;
-                    color: #64748b;
-                    font-size: 14px;
-                }}
-                .timestamp {{
-                    color: #94a3b8;
-                    font-size: 14px;
-                    margin-top: 15px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>{emoji} LAN Monitor Alert</h1>
-            </div>
-            <div class="content">
-                <div class="alert-box">
-                    <p style="margin: 0; font-size: 16px;"><strong>{message}</strong></p>
-                </div>
-        """
-        
-        # Dodaj informacje o urządzeniu jeśli są dostępne
-        if device_info:
-            html += """
-                <div class="device-info">
-                    <h3 style="margin-top: 0; color: #1e293b;">Informacje o urządzeniu:</h3>
-                    <table>
-            """
-            
-            if device_info.get('ip_address'):
-                html += f"""
-                        <tr>
-                            <td>Adres IP:</td>
-                            <td><strong>{device_info['ip_address']}</strong></td>
-                        </tr>
-                """
-            
-            if device_info.get('mac_address'):
-                html += f"""
-                        <tr>
-                            <td>Adres MAC:</td>
-                            <td><code>{device_info['mac_address']}</code></td>
-                        </tr>
-                """
-            
-            if device_info.get('hostname'):
-                html += f"""
-                        <tr>
-                            <td>Nazwa:</td>
-                            <td>{device_info['hostname']}</td>
-                        </tr>
-                """
-            
-            if device_info.get('vendor'):
-                html += f"""
-                        <tr>
-                            <td>Producent:</td>
-                            <td>{device_info['vendor']}</td>
-                        </tr>
-                """
-            
-            if device_info.get('first_seen'):
-                html += f"""
-                        <tr>
-                            <td>Pierwsze pojawienie:</td>
-                            <td>{device_info['first_seen']}</td>
-                        </tr>
-                """
-            
-            html += """
-                    </table>
-                </div>
-            """
-        
-        html += f"""
-                <div class="timestamp">
-                    <p>Czas alertu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-                </div>
-            </div>
-            <div class="footer">
-                <p>To jest automatyczna wiadomość z systemu LAN Monitor</p>
-                <p style="font-size: 12px; color: #94a3b8;">Aby zmienić ustawienia powiadomień, zaloguj się do panelu administracyjnego</p>
-            </div>
-        </body>
-        </html>
-        """
+        # Renderuj template
+        html = render_template('emails/alert_simple.html',
+                             alert_emoji=alert_emoji,
+                             message=message,
+                             device_info=device_info,
+                             timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         return html
-    
-    def _create_alert_text(self, alert_type: str, message: str, device_info: Optional[dict]) -> str:
-        """
-        Stwórz tekstową wersję alertu (fallback dla klientów bez HTML)
-        
-        Args:
-            alert_type: Typ alertu
-            message: Treść alertu
-            device_info: Informacje o urządzeniu
-            
-        Returns:
-            str: Tekstowa wersja wiadomości
-        """
-        text = f"""
-LAN MONITOR - ALERT
-
-{message}
-
-"""
-        
-        if device_info:
-            text += "INFORMACJE O URZĄDZENIU:\n"
-            text += "-" * 40 + "\n"
-            
-            if device_info.get('ip_address'):
-                text += f"Adres IP:      {device_info['ip_address']}\n"
-            if device_info.get('mac_address'):
-                text += f"Adres MAC:     {device_info['mac_address']}\n"
-            if device_info.get('hostname'):
-                text += f"Nazwa:         {device_info['hostname']}\n"
-            if device_info.get('vendor'):
-                text += f"Producent:     {device_info['vendor']}\n"
-            if device_info.get('first_seen'):
-                text += f"Pierwsze pojawienie: {device_info['first_seen']}\n"
-            
-            text += "-" * 40 + "\n\n"
-        
-        text += f"Czas alertu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        text += "---\n"
-        text += "To jest automatyczna wiadomość z systemu LAN Monitor\n"
-        
-        return text
     
     def test_connection(self) -> bool:
         """
@@ -371,139 +192,6 @@ LAN MONITOR - ALERT
             
         except Exception as e:
             logger.error(f"❌ Test połączenia SMTP nieudany: {e}")
-            return False
-    
-    def send_welcome_email(self, recipient_email: str, recipient_name: str = None) -> bool:
-        """
-        Wyślij prosty email powitalny do nowego odbiorcy
-        
-        Args:
-            recipient_email: Adres email odbiorcy
-            recipient_name: Nazwa odbiorcy (opcjonalne)
-            
-        Returns:
-            bool: True jeśli wysłano pomyślnie
-        """
-        if not self.enabled:
-            logger.warning("Email manager wyłączony - nie wysyłam emaila powitalnego")
-            return False
-        
-        try:
-            subject = "� Witaj w systemie LAN Monitor!"
-            
-            # Prosta treść HTML
-            name_display = recipient_name if recipient_name else recipient_email
-            html_body = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body {{
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-                        line-height: 1.6;
-                        color: #333;
-                        max-width: 600px;
-                        margin: 0 auto;
-                        padding: 20px;
-                        background-color: #f7fafc;
-                    }}
-                    .container {{
-                        background: white;
-                        border-radius: 12px;
-                        overflow: hidden;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                    }}
-                    .header {{
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 40px 30px;
-                        text-align: center;
-                    }}
-                    .header h1 {{
-                        margin: 0;
-                        font-size: 28px;
-                        font-weight: 600;
-                    }}
-                    .content {{
-                        padding: 40px 30px;
-                    }}
-                    .welcome-text {{
-                        font-size: 18px;
-                        color: #1e293b;
-                        margin-bottom: 20px;
-                    }}
-                    .info-box {{
-                        background: #f8fafc;
-                        border-left: 4px solid #667eea;
-                        padding: 20px;
-                        margin: 20px 0;
-                        border-radius: 4px;
-                    }}
-                    .footer {{
-                        text-align: center;
-                        padding: 30px;
-                        color: #64748b;
-                        font-size: 14px;
-                        background: #f8fafc;
-                    }}
-                    .emoji {{
-                        font-size: 48px;
-                        margin-bottom: 20px;
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <div class="emoji">&#128187;</div>
-                        <h1>Witaj w LAN Monitor!</h1>
-                    </div>
-                    <div class="content">
-                        <p class="welcome-text">Cześć <strong>{name_display}</strong>!</p>
-                        <p>Dziękujemy za dołączenie do systemu powiadomień LAN Monitor.</p>
-                        
-                        <div class="info-box">
-                            <p><strong>📧 Twój email został pomyślnie dodany do listy odbiorców.</strong></p>
-                            <p style="margin: 10px 0 0 0;">Od teraz będziesz otrzymywać powiadomienia o wszystkich ważnych wydarzeniach w Twojej sieci lokalnej zgodnie z wybranymi preferencjami.</p>
-                        </div>
-                        
-                        <p><strong>Co możesz śledzić?</strong></p>
-                        <ul style="color: #475569;">
-                            <li>🆕 Nowe urządzenia podłączone do sieci</li>
-                            <li>⚠️ Urządzenia, które przeszły w tryb offline</li>
-                            <li>✅ Urządzenia, które wróciły do sieci</li>
-                            <li>📊 Nietypowy ruch sieciowy</li>
-                            <li>🔥 Wysoki poziom ruchu w sieci</li>
-                        </ul>
-                        
-                        <p style="margin-top: 30px;">Jeśli masz jakiekolwiek pytania, skontaktuj się z administratorem systemu.</p>
-                    </div>
-                    <div class="footer">
-                        <p><strong>LAN Monitor</strong></p>
-                        <p style="margin: 5px 0; color: #94a3b8;">Inteligentny system monitorowania sieci lokalnej</p>
-                        <p style="margin-top: 20px; font-size: 13px; color: #64748b;">To jest automatyczna wiadomość z systemu LAN Monitor</p>
-                        <p style="margin-top: 10px; font-size: 12px; color: #94a3b8;">Data: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            logger.info(f"Wysyłam email powitalny do: {recipient_email}")
-            success = self.send_email(subject, html_body, to_email=recipient_email, html=True)
-            
-            if success:
-                logger.info(f"✅ Email powitalny wysłany pomyślnie do: {recipient_email}")
-            else:
-                logger.error(f"❌ Nie udało się wysłać emaila powitalnego do: {recipient_email}")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"❌ Błąd podczas wysyłania emaila powitalnego: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
             return False
     
     def send_alert_to_recipients(self, alert_type: str, message: str, device_info: Optional[dict] = None) -> dict:

@@ -153,6 +153,10 @@
                                         class="btn-icon-action" title="Wyślij emailem">
                                     📧
                                 </button>
+                                <button onclick="deleteReport({{ report.id }})" 
+                                        class="btn-icon-action btn-delete" title="Usuń raport">
+                                    🗑️
+                                </button>
                             </div>
                         </div>
                         {% endfor %}
@@ -369,6 +373,27 @@
             if (event.target == modal) {
                 closeEmailModal();
             }
+        }
+
+        function deleteReport(reportId) {
+            if (!confirm('Czy na pewno chcesz usunąć ten raport z historii?')) {
+                return;
+            }
+
+            fetch(`/device/${deviceId}/report/${reportId}/delete`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Błąd: ' + (data.error || 'Nie udało się usunąć raportu'));
+                }
+            })
+            .catch(error => {
+                alert('Błąd połączenia: ' + error);
+            });
         }
     </script>
 </body>

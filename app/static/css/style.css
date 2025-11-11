@@ -1312,6 +1312,13 @@ body {
     font-weight: 700;
     color: #667eea;
     text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.topbar-brand:hover {
+    color: #5568d3;
+    transform: scale(1.03);
+    opacity: 0.9;
 }
 
 .topbar-brand .logo-icon {
@@ -2108,6 +2115,12 @@ body {
     border-color: #667eea;
     transform: scale(1.1);
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-icon-action.btn-delete:hover {
+    background: #ef4444;
+    border-color: #ef4444;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
 }
 
 .empty-state {

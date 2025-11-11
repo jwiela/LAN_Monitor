@@ -26,6 +26,11 @@ class TrafficManager:
     
     def init_app(self, app):
         """Inicjalizacja z aplikacją Flask"""
+        # Zabezpieczenie przed wielokrotną inicjalizacją
+        if self.app is not None:
+            logger.warning("⚠ Traffic manager już zainicjalizowany, pomijam ponowną inicjalizację")
+            return
+            
         self.app = app
         
         # Import tutaj aby uniknąć circular imports
@@ -39,6 +44,8 @@ class TrafficManager:
             interface=interface,
             update_interval=update_interval
         )
+        
+        logger.info(f"✅ Traffic manager zainicjalizowany (interface={interface}, interval={update_interval}s)")
         
         # Inicjalizuj writer do InfluxDB (jeśli włączony)
         if app.config.get('INFLUXDB_ENABLED', False):

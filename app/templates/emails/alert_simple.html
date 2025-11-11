@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border: 1px solid #ddd;
+        }
+        .header {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin: -30px -30px 20px -30px;
+        }
+        .alert-box {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .device-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .device-info table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .device-info td {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .device-info td:first-child {
+            font-weight: 600;
+            color: #666;
+            width: 140px;
+        }
+        .device-info tr:last-child td {
+            border-bottom: none;
+        }
+        .timestamp {
+            color: #6c757d;
+            font-size: 14px;
+            margin-top: 15px;
+            text-align: center;
+        }
+        .footer {
+            text-align: center;
+            padding: 15px;
+            color: #6c757d;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin:0">{{ alert_emoji }} LAN Monitor Alert</h1>
+        </div>
+        
+        <div class="alert-box">
+            <p style="margin:0; font-size:16px"><strong>{{ message }}</strong></p>
+        </div>
+        
+        {% if device_info %}
+        <div class="device-info">
+            <h3 style="margin-top:0; color:#667eea">Informacje o urządzeniu:</h3>
+            <table>
+                {% if device_info.ip_address %}
+                <tr>
+                    <td>Adres IP:</td>
+                    <td><strong>{{ device_info.ip_address }}</strong></td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.mac_address %}
+                <tr>
+                    <td>Adres MAC:</td>
+                    <td><code>{{ device_info.mac_address }}</code></td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.hostname %}
+                <tr>
+                    <td>Nazwa:</td>
+                    <td>{{ device_info.hostname }}</td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.vendor %}
+                <tr>
+                    <td>Producent:</td>
+                    <td>{{ device_info.vendor }}</td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.first_seen %}
+                <tr>
+                    <td>Pierwsze pojawienie:</td>
+                    <td>{{ device_info.first_seen }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+        {% endif %}
+        
+        <div class="timestamp">
+            <p>Czas alertu: {{ timestamp }}</p>
+        </div>
+        
+        <div class="footer">
+            <p><strong>LAN Monitor</strong> - System Monitorowania Sieci</p>
+            <p>To jest automatyczna wiadomość. Aby zmienić ustawienia powiadomień,<br>
+            zaloguj się do panelu administracyjnego.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -4,6 +4,7 @@ Blueprint głównych stron - dashboard, strona główna, szczegóły urządzenia
 from flask import Blueprint, render_template, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app.models import Device, DeviceActivity, Alert
+from app.helpers import format_bytes
 from app import db
 from sqlalchemy import desc
 from datetime import datetime
@@ -152,19 +153,11 @@ def email_settings():
         'use_tls': Config.MAIL_USE_TLS
     }
     
-    # Pobierz statystyki alertów
-    total_alerts = Alert.query.count()
-    sent_alerts = Alert.query.filter_by(is_sent=True).count()
-    pending_alerts = Alert.query.filter_by(is_sent=False).count()
-    
     # Pobierz listę odbiorców
     recipients = EmailRecipient.query.order_by(EmailRecipient.created_at.desc()).all()
     
     return render_template('email_settings.html',
                          config=config_status,
-                         total_alerts=total_alerts,
-                         sent_alerts=sent_alerts,
-                         pending_alerts=pending_alerts,
                          recipients=recipients)
 
 
@@ -220,18 +213,6 @@ def device_detail(device_id):
     
     logger.info(f"📊 Znaleziono {len(activities)} rekordów aktywności dla urządzenia {device.ip_address}")
     
-    # Funkcja pomocnicza do formatowania rozmiaru (system dziesiętny SI - jak Grafana)
-    def format_bytes(bytes_value):
-        """Formatuje bajty do odpowiedniej jednostki (1000-based, SI)"""
-        if bytes_value < 1000:
-            return f"{bytes_value:.2f} B"
-        elif bytes_value < 1000 * 1000:
-            return f"{bytes_value / 1000:.2f} KB"
-        elif bytes_value < 1000 * 1000 * 1000:
-            return f"{bytes_value / 1000 / 1000:.2f} MB"
-        else:
-            return f"{bytes_value / 1000 / 1000 / 1000:.2f} GB"
-    
     # Pobierz bieżące prędkości (KB/s)
     download_rate = "0.00 KB/s"
     upload_rate = "0.00 KB/s"
@@ -243,7 +224,10 @@ def device_detail(device_id):
     # Najpierw sprawdź czy traffic_monitor działa i jest zainicjalizowany
     if traffic_manager and traffic_manager.traffic_monitor and traffic_manager.traffic_monitor.running:
         try:
+            logger.info(f"✅ Traffic monitor działa - pobieranie rates...")
             rates = traffic_manager.traffic_monitor.get_current_rates()
+            logger.info(f"📊 Otrzymano rates dla {len(rates)} urządzeń: {list(rates.keys())}")
+            
             device_rate = rates.get(device.ip_address, (0, 0))
             
             logger.info(f"📈 Rates dla {device.ip_address}: ↓{device_rate[0]:.2f} KB/s ↑{device_rate[1]:.2f} KB/s")
@@ -495,35 +479,35 @@ def add_email_recipient():
         
         # Wyślij email powitalny
         email_manager = EmailManager(Config)
-        print(f"📧 [DEBUG] Próba wysłania emaila powitalnego do {email}")
-        print(f"📧 [DEBUG] email_manager.enabled={email_manager.enabled}")
-        logger.info(f"📧 Próba wysłania emaila powitalnego do {email}, email_manager.enabled={email_manager.enabled}")
         
         if email_manager.enabled:
             try:
-                print(f"📧 [DEBUG] Wywołuję send_welcome_email...")
-                welcome_sent = email_manager.send_welcome_email(email, name)
-                print(f"📧 [DEBUG] Wynik send_welcome_email: {welcome_sent}")
-                logger.info(f"📧 Wynik send_welcome_email: {welcome_sent}")
+                html_body = render_template('emails/welcome_simple.html',
+                                          recipient_name=name if name else None,
+                                          recipient_email=email,
+                                          current_date=datetime.now().strftime('%d.%m.%Y %H:%M'),
+                                          notify_new_device=notify_new_device,
+                                          notify_device_offline=notify_device_offline,
+                                          notify_device_online=notify_device_online,
+                                          notify_unusual_traffic=notify_unusual_traffic,
+                                          notify_high_traffic=notify_high_traffic)
+                
+                subject = "Witaj w systemie LAN Monitor!"
+                welcome_sent = email_manager.send_email(subject, html_body, to_email=email, html=True)
                 
                 if welcome_sent:
                     flash(f'✅ Dodano odbiorcę {email} i wysłano email powitalny!', 'success')
                 else:
                     flash(f'✅ Dodano odbiorcę {email}, ale nie udało się wysłać emaila powitalnego.', 'warning')
             except Exception as email_error:
-                print(f"❌ [DEBUG] Błąd wysyłania emaila powitalnego: {email_error}")
-                logger.error(f"❌ Błąd wysyłania emaila powitalnego: {email_error}")
-                import traceback
-                traceback.print_exc()
+                logger.error(f"Błąd wysyłania emaila powitalnego: {email_error}")
                 flash(f'✅ Dodano odbiorcę {email}, ale wystąpił błąd przy wysyłaniu emaila: {str(email_error)}', 'warning')
         else:
-            print(f"⚠️ [DEBUG] Email manager wyłączony")
-            logger.warning(f"⚠️ Email manager wyłączony, nie wysłano emaila powitalnego")
-            flash(f'✅ Dodano odbiorcę {email} (email manager wyłączony - nie wysłano powitalnego).', 'success')
+            flash(f'✅ Dodano odbiorcę {email} (email manager wyłączony).', 'success')
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"❌ Błąd dodawania odbiorcy: {e}")
+        logger.error(f"Błąd dodawania odbiorcy: {e}")
         flash(f'Błąd podczas dodawania odbiorcy: {str(e)}', 'error')
     
     return redirect(url_for('main.email_settings'))
@@ -634,11 +618,8 @@ def generate_report(device_id):
         db.session.add(report_record)
         db.session.commit()
         
-        logger.info(f"✅ Zapisano raport w historii, ID={report_record.id}")
-        
         # Jeśli wybrano wysyłkę emailem
         if email:
-            logger.info(f"📧 Rozpoczynam wysyłkę emaila do {email}")
             # Generuj PDF
             from datetime import timedelta
             from io import BytesIO
@@ -679,28 +660,16 @@ def generate_report(device_id):
             period_name = {1: "dzienny", 7: "tygodniowy", 30: "miesięczny"}.get(period_days, f"{period_days}-dniowy")
             subject = f"Raport {period_name} - {device.hostname or device.ip_address}"
             
-            # Przygotuj dane do szablonu emaila - funkcja pomocnicza
-            def format_bytes_helper(bytes_value):
-                if bytes_value < 1000:
-                    return f"{bytes_value:.2f} B"
-                elif bytes_value < 1000 * 1000:
-                    return f"{bytes_value / 1000:.2f} KB"
-                elif bytes_value < 1000 * 1000 * 1000:
-                    return f"{bytes_value / 1000 / 1000:.2f} MB"
-                else:
-                    return f"{bytes_value / 1000 / 1000 / 1000:.2f} GB"
-            
-            logger.info(f"📊 Przygotowuję statystyki emaila...")
+            # Przygotuj dane do szablonu emaila
             email_stats = {
-                'total_download': format_bytes_helper(stats.get('total_traffic_in_raw', 0)) if stats else '0 B',
-                'total_upload': format_bytes_helper(stats.get('total_traffic_out_raw', 0)) if stats else '0 B',
-                'total_traffic': format_bytes_helper(stats.get('total_traffic_raw', 0)) if stats else '0 B',
+                'total_download': format_bytes(stats.get('total_traffic_in_raw', 0)) if stats else '0 B',
+                'total_upload': format_bytes(stats.get('total_traffic_out_raw', 0)) if stats else '0 B',
+                'total_traffic': format_bytes(stats.get('total_traffic_raw', 0)) if stats else '0 B',
                 'active_sessions': stats.get('total_records', 0) if stats else 0
             }
             
-            logger.info(f"📧 Renderuję szablon emaila...")
-            # Renderuj email z template
-            email_body = render_template('emails/report.html',
+            # Renderuj email z uproszczonego template
+            email_body = render_template('emails/report_simple.html',
                                         device_name=device.hostname or 'Nieznane',
                                         device_ip=device.ip_address,
                                         period_name=period_name,
@@ -710,7 +679,6 @@ def generate_report(device_id):
             
             filename = f"raport_{device.hostname or device.ip_address}_{period_days}d_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             
-            logger.info(f"📤 Wysyłam email do {email}...")
             try:
                 result = email_manager.send_email(
                     subject=subject,
@@ -721,15 +689,11 @@ def generate_report(device_id):
                     attachment_name=filename
                 )
                 if result:
-                    logger.info(f"✅ Email wysłany pomyślnie do {email}")
                     return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': True})
                 else:
-                    logger.warning(f"⚠️ EmailManager zwrócił False")
-                    return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': False, 'email_error': 'EmailManager zwrócił False - sprawdź konfigurację SMTP'})
+                    return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': False, 'email_error': 'Nie udało się wysłać emaila'})
             except Exception as email_error:
-                import traceback
-                logger.error(f"❌ Błąd wysyłania emaila: {email_error}")
-                logger.error(f"Traceback: {traceback.format_exc()}")
+                logger.error(f"Błąd wysyłania emaila: {email_error}")
                 return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': False, 'email_error': str(email_error)})
         
         return jsonify({'success': True, 'report_id': report_record.id, 'email_sent': False})
@@ -909,21 +873,38 @@ def send_report_email(device_id, report_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@main_bp.route('/device/<int:device_id>/report/<int:report_id>/delete', methods=['POST'])
+@login_required
+def delete_device_report(device_id, report_id):
+    """Usuń raport z historii"""
+    try:
+        from app.models import DeviceReport
+        
+        # Sprawdź czy urządzenie istnieje
+        device = Device.query.get_or_404(device_id)
+        
+        # Znajdź raport
+        report = DeviceReport.query.filter_by(id=report_id, device_id=device_id).first()
+        
+        if not report:
+            return jsonify({'success': False, 'error': 'Raport nie został znaleziony'}), 404
+        
+        # Usuń raport
+        db.session.delete(report)
+        db.session.commit()
+        
+        logger.info(f"Usunięto raport {report_id} dla urządzenia {device.ip_address}")
+        return jsonify({'success': True, 'message': 'Raport został usunięty'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Błąd usuwania raportu: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 def calculate_device_stats(device, activities, period_days):
     """Oblicz statystyki dla urządzenia"""
     from datetime import datetime, timedelta
-    
-    # Funkcja pomocnicza do formatowania rozmiaru (system dziesiętny SI)
-    def format_bytes(bytes_value):
-        """Formatuje bajty do odpowiedniej jednostki (1000-based, SI)"""
-        if bytes_value < 1000:
-            return f"{bytes_value:.2f} B"
-        elif bytes_value < 1000 * 1000:
-            return f"{bytes_value / 1000:.2f} KB"
-        elif bytes_value < 1000 * 1000 * 1000:
-            return f"{bytes_value / 1000 / 1000:.2f} MB"
-        else:
-            return f"{bytes_value / 1000 / 1000 / 1000:.2f} GB"
     
     if not activities:
         return {

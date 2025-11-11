@@ -6,6 +6,7 @@ import os
 import logging
 from app import create_app
 from core.traffic_manager import traffic_manager
+from core.scanner_manager import scanner_manager
 
 # Konfiguracja logowania
 logging.basicConfig(
@@ -20,9 +21,10 @@ config_name = os.getenv('FLASK_ENV', 'development')
 app = create_app(config_name)
 
 if __name__ == '__main__':
-    # Uruchom traffic manager w osobnym wątku
+    # Uruchom traffic manager i scanner manager w osobnych wątkach
     try:
         traffic_manager.start()
+        scanner_manager.start()
         
         # Uruchom serwer deweloperski
         # W produkcji użyj gunicorn lub innego WSGI servera
@@ -35,3 +37,4 @@ if __name__ == '__main__':
         print("\n🛑 Zatrzymywanie aplikacji...")
     finally:
         traffic_manager.stop()
+        scanner_manager.stop()
