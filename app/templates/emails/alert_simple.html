@@ -24,6 +24,9 @@
             text-align: center;
             margin: -30px -30px 20px -30px;
         }
+        .header.critical {
+            background: #dc3545;
+        }
         .alert-box {
             background: #f8f9fa;
             border-left: 3px solid #667eea;
@@ -69,7 +72,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <div class="header {% if alert_emoji == '🚨' %}critical{% endif %}">
             <h1 style="margin:0">{{ alert_emoji }} LAN Monitor Alert</h1>
         </div>
         
@@ -113,6 +116,34 @@
                 <tr>
                     <td>Pierwsze pojawienie:</td>
                     <td>{{ device_info.first_seen }}</td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.packets_in %}
+                <tr>
+                    <td>Pakiety przychodzące:</td>
+                    <td><strong style="color:#dc3545">{{ device_info.packets_in }}</strong></td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.packets_per_min %}
+                <tr>
+                    <td>Intensywność:</td>
+                    <td><strong style="color:#dc3545">{{ device_info.packets_per_min }} pakietów/min</strong></td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.bytes_in %}
+                <tr>
+                    <td>Ruch przychodzący:</td>
+                    <td><strong style="color:#dc3545">{{ device_info.bytes_in }}</strong></td>
+                </tr>
+                {% endif %}
+                
+                {% if device_info.threshold %}
+                <tr>
+                    <td>Stosunek do średniej:</td>
+                    <td><strong style="color:#dc3545">{{ device_info.threshold }}</strong></td>
                 </tr>
                 {% endif %}
             </table>

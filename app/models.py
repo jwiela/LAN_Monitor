@@ -121,6 +121,7 @@ class EmailRecipient(db.Model):
     notify_device_online = db.Column(db.Boolean, default=True)
     notify_unusual_traffic = db.Column(db.Boolean, default=False)
     notify_high_traffic = db.Column(db.Boolean, default=False)
+    notify_ddos_attack = db.Column(db.Boolean, default=True)
     
     def __repr__(self):
         return f'<EmailRecipient {self.email}>'
@@ -133,6 +134,7 @@ class EmailRecipient(db.Model):
             'device_online': self.notify_device_online,
             'unusual_traffic': self.notify_unusual_traffic,
             'high_traffic': self.notify_high_traffic,
+            'ddos_attack': self.notify_ddos_attack,
         }
         return mapping.get(alert_type, False)
 

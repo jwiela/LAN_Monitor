@@ -43,7 +43,7 @@ class Config:
     INFLUXDB_BUCKET = os.getenv('INFLUXDB_BUCKET', 'network_traffic')
     
     # Grafana
-    GRAFANA_URL = os.getenv('GRAFANA_URL', 'http://localhost:3000')
+    GRAFANA_URL = os.getenv('GRAFANA_URL', 'http://192.168.1.12:3000')
     GRAFANA_ENABLED = os.getenv('GRAFANA_ENABLED', 'false').lower() == 'true'
     GRAFANA_DASHBOARD_UID = os.getenv('GRAFANA_DASHBOARD_UID', '')
     

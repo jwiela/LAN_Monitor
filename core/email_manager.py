@@ -157,6 +157,7 @@ class EmailManager:
             'device_online': '✅',
             'unusual_traffic': '📊',
             'high_traffic': '🔥',
+            'ddos_attack': '🚨',
         }
         
         alert_emoji = emoji_map.get(alert_type, '🔔')
