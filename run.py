@@ -9,9 +9,14 @@ from core.traffic_manager import traffic_manager
 from core.scanner_manager import scanner_manager
 
 # Konfiguracja logowania
+log_file = os.path.join(os.path.dirname(__file__), 'flask.log')
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
 )
 
 # Pobierz nazwę środowiska z zmiennej środowiskowej

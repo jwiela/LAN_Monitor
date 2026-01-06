@@ -1,7 +1,7 @@
 """
 Blueprint głównych stron - dashboard, strona główna, szczegóły urządzenia
 """
-from flask import Blueprint, render_template, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, jsonify, request
 from flask_login import login_required, current_user
 from app.models import Device, DeviceActivity, Alert
 from app.helpers import format_bytes
