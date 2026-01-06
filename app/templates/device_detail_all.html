@@ -8,16 +8,16 @@
 </head>
 <body class="dashboard">
     {% include 'navbar.html' %}
-
-    <div class="page-header">
-        <div class="page-header-content">
-            <a href="{{ url_for('main.all_devices') }}" class="btn btn-secondary btn-small">← Wszystkie urządzenia</a>
-            <h1>📊 {{ device.ip_address }} - Raporty</h1>
-            <div style="width: 150px;"></div>
-        </div>
-    </div>
     
     <div class="container">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb" style="margin-bottom: 20px;">
+            <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+            <span>›</span>
+            <a href="{{ url_for('main.all_devices') }}">Raporty</a>
+            <span>›</span>
+            <span>{{ device.ip_address }}</span>
+        </div>
         <!-- Podstawowe informacje o urządzeniu -->
         <div class="device-info-card">
             <h2>💻 Informacje o urządzeniu</h2>

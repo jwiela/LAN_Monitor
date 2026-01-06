@@ -8,11 +8,6 @@
 </head>
 <body class="dashboard">
     {% include 'navbar.html' %}
-    
-    <div class="page-header">
-        <h1>LAN Monitor</h1>
-        <p class="page-subtitle">Monitoring urządzeń w sieci lokalnej</p>
-    </div>
 
     <!-- Komunikaty Flash -->
     <div class="container">
@@ -31,8 +26,8 @@
             <div class="section-header">
                 <div class="section-header-content">
                     <h2>📱 Urządzenia w sieci</h2>
-                    <a href="{{ url_for('main.scan_network') }}" class="btn btn-primary">
-                        🔍 Skanuj sieć
+                    <a href="{{ url_for('main.scan_network') }}" class="btn btn-secondary">
+                        Skanuj sieć
                     </a>
                 </div>
             </div>
@@ -58,9 +53,6 @@
                                         <span class="status-indicator {% if device.is_online %}status-online{% else %}status-offline{% endif %}">
                                             {% if device.is_online %}🟢{% else %}🔴{% endif %}
                                         </span>
-                                        {% if device.is_new %}
-                                            <span class="badge badge-new-small">NEW</span>
-                                        {% endif %}
                                     </td>
                                     <td class="device-name">
                                         <strong>{{ device.hostname or 'Nieznane urządzenie' }}</strong>

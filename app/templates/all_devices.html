@@ -10,11 +10,6 @@
     <!-- Navbar -->
     {% include 'navbar.html' %}
 
-    <!-- Page Header -->
-    <div class="page-header">
-        <h1>Raporty</h1>
-    </div>
-
     <!-- Komunikaty Flash -->
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -27,107 +22,62 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Statystyki -->
-        <div class="stats-grid stats-compact">
-            <div class="stat-card stat-compact">
-                <div class="stat-icon">📊</div>
-                <div class="stat-info">
-                    <h3>{{ total_devices }}</h3>
-                    <p>Wszystkie urządzenia</p>
-                </div>
-            </div>
-            
-            <div class="stat-card stat-compact stat-success">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <h3>{{ online_devices }}</h3>
-                    <p>Aktywne</p>
-                </div>
-            </div>
-            
-            <div class="stat-card stat-compact stat-danger">
-                <div class="stat-icon">⚠️</div>
-                <div class="stat-info">
-                    <h3>{{ offline_devices }}</h3>
-                    <p>Nieaktywne</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Urządzenia aktywne -->
+        <!-- Wszystkie urządzenia -->
         <div class="content-section">
             <div class="section-header">
-                <div class="section-header-content">
-                    <h2>✅ Urządzenia aktywne ({{ online_devices }})</h2>
-                    <a href="{{ url_for('main.scan_network') }}" class="btn btn-scan">
-                        🔍 Skanuj sieć
-                    </a>
-                </div>
+                <h2>📱 Wszystkie urządzenia ({{ total_devices }})</h2>
             </div>
             
-            {% if active_devices %}
-                <div class="devices-grid">
-                    {% for device in active_devices %}
-                        <a href="{{ url_for('main.device_detail_all', device_id=device.id) }}" class="device-card-link">
-                            <div class="device-card">
-                                <div class="device-header">
-                                    <div class="device-icon">💻</div>
-                                    {% if device.is_new %}
-                                        <span class="badge badge-new">NOWE</span>
-                                    {% endif %}
-                                </div>
-                                <div class="device-info">
-                                    <h3>{{ device.hostname or 'Nieznane urządzenie' }}</h3>
-                                    <p class="device-ip">🌐 IP: {{ device.ip_address }}</p>
-                                    <p>📟 MAC: {{ device.mac_address or 'Brak' }}</p>
-                                    {% if device.vendor %}
-                                        <p>🏭 {{ device.vendor }}</p>
-                                    {% endif %}
-                                    <p style="font-size: 12px; color: #999; margin-top: 10px;">
-                                        Ostatnio widziany: {{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}
-                                    </p>
-                                </div>
-                            </div>
-                        </a>
-                    {% endfor %}
+            {% if active_devices or inactive_devices %}
+                <div class="devices-table-container">
+                    <table class="devices-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Nazwa</th>
+                                <th>Adres IP</th>
+                                <th>Adres MAC</th>
+                                <th>Producent</th>
+                                <th>Ostatnio widziane</th>
+                                <th>Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in active_devices %}
+                                <tr class="device-row">
+                                    <td>
+                                        <span class="status-badge status-online">✅ Online</span>
+                                    </td>
+                                    <td class="device-name">{{ device.hostname or 'Nieznane urządzenie' }}</td>
+                                    <td>{{ device.ip_address }}</td>
+                                    <td class="device-mac">{{ device.mac_address or '-' }}</td>
+                                    <td>{{ device.vendor or '-' }}</td>
+                                    <td class="device-last-seen">{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.device_detail_all', device_id=device.id) }}" class="btn btn-secondary btn-sm">Raporty</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            {% for device in inactive_devices %}
+                                <tr class="device-row device-offline">
+                                    <td>
+                                        <span class="status-badge status-offline">⚠️ Offline</span>
+                                    </td>
+                                    <td class="device-name">{{ device.hostname or 'Nieznane urządzenie' }}</td>
+                                    <td>{{ device.ip_address }}</td>
+                                    <td class="device-mac">{{ device.mac_address or '-' }}</td>
+                                    <td>{{ device.vendor or '-' }}</td>
+                                    <td class="device-last-seen">{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.device_detail_all', device_id=device.id) }}" class="btn btn-secondary btn-sm">Raporty</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             {% else %}
-                <p style="text-align: center; color: #999; padding: 40px;">Brak aktywnych urządzeń w sieci</p>
-            {% endif %}
-        </div>
-
-        <!-- Urządzenia nieaktywne -->
-        <div class="content-section" style="margin-top: 40px;">
-            <div class="section-header">
-                <h2>⚠️ Urządzenia nieaktywne ({{ offline_devices }})</h2>
-            </div>
-            
-            {% if inactive_devices %}
-                <div class="devices-grid">
-                    {% for device in inactive_devices %}
-                        <a href="{{ url_for('main.device_detail_all', device_id=device.id) }}" class="device-card-link">
-                            <div class="device-card offline">
-                                <div class="device-header">
-                                    <div class="device-icon">💤</div>
-                                    <span class="badge badge-offline">OFFLINE</span>
-                                </div>
-                                <div class="device-info">
-                                    <h3>{{ device.hostname or 'Nieznane urządzenie' }}</h3>
-                                    <p class="device-ip">🌐 IP: {{ device.ip_address }}</p>
-                                    <p>📟 MAC: {{ device.mac_address or 'Brak' }}</p>
-                                    {% if device.vendor %}
-                                        <p>🏭 {{ device.vendor }}</p>
-                                    {% endif %}
-                                    <p style="font-size: 12px; color: #999; margin-top: 10px;">
-                                        Ostatnio widziany: {{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}
-                                    </p>
-                                </div>
-                            </div>
-                        </a>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p style="text-align: center; color: #999; padding: 40px;">Brak nieaktywnych urządzeń w historii</p>
+                <p style="text-align: center; color: #999; padding: 40px;">Brak urządzeń w bazie danych</p>
             {% endif %}
         </div>
     </div>

@@ -24,9 +24,6 @@
             <div id="alerts-dropdown-top" class="alerts-dropdown-menu">
                 <div class="alerts-dropdown-header">
                     <strong>Powiadomienia</strong>
-                    {% if unread_count and unread_count > 0 %}
-                        <a href="{{ url_for('main.mark_all_alerts_read') }}" class="mark-all-read" onclick="clearHiddenAlerts()">Oznacz wszystkie jako przeczytane</a>
-                    {% endif %}
                 </div>
                 <div class="alerts-dropdown-content" id="alerts-list">
                     <div class="alerts-loading">Ładowanie...</div>
@@ -156,10 +153,29 @@
         const dropdown = document.getElementById('alerts-dropdown-top');
         dropdown.classList.toggle('show');
         
-        // Załaduj alerty przy pierwszym otwarciu
+        // Załaduj alerty i oznacz jako przeczytane przy otwarciu
         if (dropdown.classList.contains('show')) {
             loadAlerts();
+            // Automatycznie oznacz wszystkie alerty jako przeczytane
+            markAllAlertsAsRead();
         }
+    }
+    
+    function markAllAlertsAsRead() {
+        fetch('{{ url_for("main.mark_all_alerts_read_api") }}', {
+            method: 'POST'
+        }).then(() => {
+            // Wyczyść licznik badge
+            const badge = document.querySelector('.alerts-badge');
+            if (badge) {
+                badge.remove();
+            }
+            // Wyczyść badge w sidebarze
+            const sidebarBadge = document.querySelector('.sidebar-badge');
+            if (sidebarBadge) {
+                sidebarBadge.remove();
+            }
+        }).catch(error => console.error('Błąd oznaczania alertów:', error));
     }
     
     function loadAlerts() {
@@ -178,6 +194,9 @@
                     if (visibleAlerts.length > 0) {
                         alertsList.innerHTML = visibleAlerts.map(alert => `
                             <div class="alert-item-wrapper ${alert.is_read ? '' : 'unread'}">
+                                <button class="alert-item-delete" onclick="deleteAlertFromDropdown(event, ${alert.id})" title="Usuń z listy">
+                                    ✕
+                                </button>
                                 <a href="{{ url_for('main.alerts_page', period='all') }}?alert_id=${alert.id}" 
                                    class="alert-item-link"
                                    onclick="markAlertRead(${alert.id})">
@@ -188,9 +207,6 @@
                                         <div class="alert-item-time">${alert.time}</div>
                                     </div>
                                 </a>
-                                <button class="alert-item-delete" onclick="deleteAlertFromDropdown(event, ${alert.id})" title="Usuń z listy">
-                                    ✕
-                                </button>
                             </div>
                         `).join('');
                     } else {
@@ -230,6 +246,9 @@
             if (alertsList.querySelectorAll('.alert-item-wrapper').length === 0) {
                 alertsList.innerHTML = '<div class="alerts-empty">Brak nowych alertów</div>';
             }
+            
+            // Aktualizuj licznik alertów
+            updateUnreadCount();
         }, 200);
         
         // Oznacz jako przeczytany (żeby zniknął z licznika)
@@ -244,10 +263,53 @@
         }).catch(error => console.error('Błąd oznaczania alertu:', error));
     }
     
-    function clearHiddenAlerts() {
-        // Wyczyść listę ukrytych alertów z localStorage
-        localStorage.removeItem('hiddenAlerts');
+
+    
+    function updateUnreadCount() {
+        // Pobierz aktualną liczbę nieprzeczytanych alertów
+        fetch('{{ url_for("main.get_unread_count_api") }}')
+            .then(response => response.json())
+            .then(data => {
+                const topbarBadge = document.querySelector('.alerts-badge');
+                const sidebarBadge = document.querySelector('.sidebar-badge');
+                
+                if (data.count > 0) {
+                    // Utwórz lub zaktualizuj badge w topbarze
+                    if (topbarBadge) {
+                        topbarBadge.textContent = data.count;
+                    } else {
+                        const alertsToggle = document.querySelector('.alerts-toggle');
+                        const newBadge = document.createElement('span');
+                        newBadge.className = 'alerts-badge';
+                        newBadge.textContent = data.count;
+                        alertsToggle.appendChild(newBadge);
+                    }
+                    
+                    // Utwórz lub zaktualizuj badge w sidebarze
+                    if (sidebarBadge) {
+                        sidebarBadge.textContent = data.count;
+                    } else {
+                        const sidebarLink = document.querySelector('.sidebar-link.has-dropdown');
+                        if (sidebarLink) {
+                            const newSidebarBadge = document.createElement('span');
+                            newSidebarBadge.className = 'sidebar-badge';
+                            newSidebarBadge.textContent = data.count;
+                            // Wstaw przed strzałką
+                            const arrow = sidebarLink.querySelector('.sidebar-arrow');
+                            sidebarLink.insertBefore(newSidebarBadge, arrow);
+                        }
+                    }
+                } else {
+                    // Usuń badge jeśli nie ma nieprzeczytanych alertów
+                    if (topbarBadge) topbarBadge.remove();
+                    if (sidebarBadge) sidebarBadge.remove();
+                }
+            })
+            .catch(error => console.error('Błąd pobierania liczby alertów:', error));
     }
+    
+    // Sprawdzaj liczbę nieprzeczytanych alertów co 10 sekund
+    setInterval(updateUnreadCount, 10000);
     
     // Zamknij dropdowny przy kliknięciu poza nimi
     document.addEventListener('click', function(event) {

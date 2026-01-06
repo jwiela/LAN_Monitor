@@ -115,13 +115,10 @@ class EmailRecipient(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     
-    # Typy alertów, które mają być wysyłane (JSON lub osobne kolumny boolean)
+    # Typy alertów, które mają być wysyłane
     notify_new_device = db.Column(db.Boolean, default=True)
-    notify_device_offline = db.Column(db.Boolean, default=True)
-    notify_device_online = db.Column(db.Boolean, default=True)
-    notify_unusual_traffic = db.Column(db.Boolean, default=False)
-    notify_high_traffic = db.Column(db.Boolean, default=False)
-    notify_ddos_attack = db.Column(db.Boolean, default=True)
+    notify_suspicious_traffic = db.Column(db.Boolean, default=True)
+    notify_mac_change = db.Column(db.Boolean, default=True)  # Zmiana adresu MAC
     
     def __repr__(self):
         return f'<EmailRecipient {self.email}>'
@@ -130,11 +127,8 @@ class EmailRecipient(db.Model):
         """Sprawdź czy odbiorca powinien otrzymać powiadomienie o danym typie alertu"""
         mapping = {
             'new_device': self.notify_new_device,
-            'device_offline': self.notify_device_offline,
-            'device_online': self.notify_device_online,
-            'unusual_traffic': self.notify_unusual_traffic,
-            'high_traffic': self.notify_high_traffic,
-            'ddos_attack': self.notify_ddos_attack,
+            'suspicious_traffic': self.notify_suspicious_traffic,
+            'mac_change': self.notify_mac_change,
         }
         return mapping.get(alert_type, False)
 

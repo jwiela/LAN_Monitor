@@ -20,6 +20,7 @@ class ScannerManager:
         self.running = False
         self.scan_thread = None
         self.scan_interval = 300  # domyślnie 5 minut
+        self.mitm_alerts_sent = {}  # Tracking wysłanych alertów o zmianie MAC
         
         if app:
             self.init_app(app)
@@ -105,8 +106,15 @@ class ScannerManager:
                         device.is_online = True
                         device.last_seen = datetime.now()
                         
-                        # Aktualizuj MAC jeśli się zmienił
+                        # Aktualizuj MAC jeśli się zmienił - WYKRYWANIE ZMIANY MAC!
                         if info['mac'] and device.mac_address != info['mac']:
+                            old_mac = device.mac_address
+                            new_mac = info['mac']
+                            logger.warning(f"⚠️ WYKRYTO ZMIANĘ MAC! {ip}: MAC zmienił się z {old_mac} na {new_mac}")
+                            
+                            # Wykryto zmianę MAC - wyślij alert
+                            self._send_mac_change_alert(device, old_mac, new_mac, email_manager)
+                            
                             device.mac_address = info['mac']
                         
                         # Aktualizuj vendor jeśli jest dostępny
@@ -253,10 +261,10 @@ class ScannerManager:
     def _send_online_notification(self, device, email_manager):
         """Wysyła powiadomienie o urządzeniu które wróciło online"""
         try:
-            from app.models import EmailRecipient, Alert
+            from app.models import Alert
             from app import db
             
-            # Utwórz alert
+            # Utwórz alert (bez wysyłania emaili)
             message = f"Urządzenie wróciło online: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
             alert = Alert(
                 device_id=device.id,
@@ -265,41 +273,18 @@ class ScannerManager:
             )
             db.session.add(alert)
             db.session.commit()
-            
-            # Wyślij emaile do odbiorców z włączonym powiadomieniem
-            recipients = EmailRecipient.query.filter_by(notify_device_online=True).all()
-            
-            for recipient in recipients:
-                try:
-                    email_manager.send_alert(
-                        to_email=recipient.email,
-                        alert_type='device_online',
-                        message=message,
-                        device_info={
-                            'name': device.hostname or device.vendor or 'Nieznane urządzenie',
-                            'ip': device.ip_address,
-                            'mac': device.mac_address,
-                            'vendor': device.vendor
-                        }
-                    )
-                    logger.info(f"📧 Wysłano powiadomienie o urządzeniu online do {recipient.email}")
-                except Exception as e:
-                    logger.error(f"❌ Błąd wysyłania emaila do {recipient.email}: {e}")
+            logger.info(f"✅ Alert online utworzony dla {device.ip_address} (bez powiadomienia email)")
                     
         except Exception as e:
-            logger.error(f"❌ Błąd wysyłania powiadomienia online: {e}", exc_info=True)
+            logger.error(f"❌ Błąd tworzenia alertu online: {e}", exc_info=True)
     
     def _send_offline_notification(self, device):
         """Wysyła powiadomienie o urządzeniu które przeszło offline"""
         try:
-            from app.models import EmailRecipient, Alert
+            from app.models import Alert
             from app import db
-            from core.email_manager import EmailManager
-            from config import Config
             
-            email_manager = EmailManager(Config)
-            
-            # Utwórz alert
+            # Utwórz alert (bez wysyłania emaili)
             message = f"Urządzenie offline: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
             alert = Alert(
                 device_id=device.id,
@@ -308,29 +293,10 @@ class ScannerManager:
             )
             db.session.add(alert)
             db.session.commit()
-            
-            # Wyślij emaile do odbiorców z włączonym powiadomieniem
-            recipients = EmailRecipient.query.filter_by(notify_device_offline=True).all()
-            
-            for recipient in recipients:
-                try:
-                    email_manager.send_alert(
-                        to_email=recipient.email,
-                        alert_type='device_offline',
-                        message=message,
-                        device_info={
-                            'name': device.hostname or device.vendor or 'Nieznane urządzenie',
-                            'ip': device.ip_address,
-                            'mac': device.mac_address,
-                            'vendor': device.vendor
-                        }
-                    )
-                    logger.info(f"📧 Wysłano powiadomienie o urządzeniu offline do {recipient.email}")
-                except Exception as e:
-                    logger.error(f"❌ Błąd wysyłania emaila do {recipient.email}: {e}")
+            logger.info(f"📴 Alert offline utworzony dla {device.ip_address} (bez powiadomienia email)")
                     
         except Exception as e:
-            logger.error(f"❌ Błąd wysyłania powiadomienia offline: {e}", exc_info=True)
+            logger.error(f"❌ Błąd tworzenia alertu offline: {e}", exc_info=True)
     
     def start(self):
         """Uruchamia automatyczne skanowanie sieci"""
@@ -394,6 +360,87 @@ class ScannerManager:
         except Exception as e:
             logger.error(f"❌ Błąd ręcznego skanowania: {e}", exc_info=True)
             return None
+    
+    def _send_mac_change_alert(self, device, old_mac, new_mac, email_manager):
+        """
+        Wysyła alert o zmianie adresu MAC
+        
+        Args:
+            device: Obiekt Device
+            old_mac: Stary adres MAC
+            new_mac: Nowy adres MAC
+            email_manager: Menedżer email
+        """
+        try:
+            from app.models import EmailRecipient, Alert
+            from app import db
+            from datetime import datetime, timedelta
+            
+            # Sprawdź cooldown - nie wysyłaj alertu jeśli niedawno wysłano
+            alert_key = f"mac_change_{device.ip_address}"
+            if alert_key in self.mitm_alerts_sent:
+                last_sent = self.mitm_alerts_sent[alert_key]
+                if datetime.now() - last_sent < timedelta(hours=1):  # 1 godzina cooldown
+                    logger.info(f"⏱️ Pomijam alert zmiany MAC dla {device.ip_address} (cooldown)")
+                    return
+            
+            # Utwórz alert
+            message = (f"Wykryto zmianę adresu MAC dla urządzenia {device.ip_address}.\n\n"
+                      f"Szczegóły:\n"
+                      f"• Stary MAC: {old_mac}\n"
+                      f"• Nowy MAC: {new_mac}")
+            
+            alert = Alert(
+                device_id=device.id,
+                alert_type='mac_change',
+                severity='warning',
+                message=message
+            )
+            db.session.add(alert)
+            db.session.commit()
+            
+            logger.warning(f"⚠️ ALERT ZMIANA MAC: {device.ip_address}: {old_mac} → {new_mac}")
+            
+            # Wyślij emaile do odbiorców z włączonym powiadomieniem
+            recipients = EmailRecipient.query.filter_by(is_active=True, notify_mac_change=True).all()
+            
+            if recipients and email_manager:
+                for recipient in recipients:
+                    try:
+                        # Przygotuj dane urządzenia
+                        device_data = {
+                            'hostname': device.hostname or 'Nieznane urządzenie',
+                            'ip_address': device.ip_address,
+                            'old_mac': old_mac,
+                            'new_mac': new_mac,
+                            'vendor': device.vendor or '-',
+                            'detected_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        }
+                        
+                        # Renderuj template
+                        from flask import render_template
+                        html_body = render_template('emails/alert_simple.html',
+                                                   alert_emoji='⚠️',
+                                                   message=message,
+                                                   device_info=device_data,
+                                                   timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                        
+                        # Wyślij email
+                        email_manager.send_email(
+                            to_email=recipient.email,
+                            subject=f"⚠️ ALERT: Zmiana adresu MAC wykryta na {device.ip_address}",
+                            body=html_body,
+                            html=True
+                        )
+                        logger.info(f"✅ Email zmiany MAC wysłany do {recipient.email}")
+                    except Exception as e:
+                        logger.error(f"❌ Błąd wysyłania email zmiany MAC do {recipient.email}: {e}")
+            
+            # Zapisz timestamp wysłania alertu
+            self.mitm_alerts_sent[alert_key] = datetime.now()
+            
+        except Exception as e:
+            logger.error(f"❌ Błąd wysyłania alertu zmiany MAC: {e}", exc_info=True)
 
 
 # Singleton instance

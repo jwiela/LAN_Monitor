@@ -9,17 +9,13 @@
 <body class="dashboard">
     {% include 'navbar.html' %}
 
-    <div class="page-header">
-        <div class="page-header-content">
-            <a href="{{ back_url }}" class="btn btn-secondary btn-small">← {{ back_text }}</a>
-            <h1>💻 Szczegóły urządzenia: {{ device.ip_address }}</h1>
-            <div style="width: 80px;"></div>
-        </div>
-    </div>
     <div class="container">
         <div class="device-header">
             <div class="device-info">
-                <h2>{{ device.vendor or '🖥️ Nieznane urządzenie' }}</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h2>{{ device.vendor or '🖥️ Nieznane urządzenie' }}</h2>
+                    <a href="{{ back_url }}" class="btn btn-secondary btn-small">← {{ back_text }}</a>
+                </div>
                 <div class="device-details">
                     <span class="detail-item">
                         <strong>IP:</strong> {{ device.ip_address }}
@@ -40,33 +36,33 @@
         </div>
 
         <!-- Statystyki bieżące -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">📥</div>
-                <div class="stat-content">
-                    <div class="stat-label">Pobieranie</div>
-                    <div class="stat-value">{{ download_rate }}</div>
+        <div class="traffic-stats-grid">
+            <div class="traffic-stat-item">
+                <div class="traffic-stat-icon">📥</div>
+                <div class="traffic-stat-content">
+                    <div class="traffic-stat-label">Pobieranie</div>
+                    <div class="traffic-stat-value">{{ download_rate }}</div>
                 </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">📤</div>
-                <div class="stat-content">
-                    <div class="stat-label">Wysyłanie</div>
-                    <div class="stat-value">{{ upload_rate }}</div>
+            <div class="traffic-stat-item">
+                <div class="traffic-stat-icon">📤</div>
+                <div class="traffic-stat-content">
+                    <div class="traffic-stat-label">Wysyłanie</div>
+                    <div class="traffic-stat-value">{{ upload_rate }}</div>
                 </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">📊</div>
-                <div class="stat-content">
-                    <div class="stat-label">Całkowity ruch (24h)</div>
-                    <div class="stat-value">{{ total_traffic }}</div>
+            <div class="traffic-stat-item">
+                <div class="traffic-stat-icon">📊</div>
+                <div class="traffic-stat-content">
+                    <div class="traffic-stat-label">Całkowity ruch (24h)</div>
+                    <div class="traffic-stat-value">{{ total_traffic }}</div>
                 </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">⏱️</div>
-                <div class="stat-content">
-                    <div class="stat-label">Ostatnia aktywność</div>
-                    <div class="stat-value">{{ last_seen }}</div>
+            <div class="traffic-stat-item">
+                <div class="traffic-stat-icon">⏱️</div>
+                <div class="traffic-stat-content">
+                    <div class="traffic-stat-label">Ostatnia aktywność</div>
+                    <div class="traffic-stat-value">{{ last_seen }}</div>
                 </div>
             </div>
         </div>
@@ -75,21 +71,23 @@
         {% if grafana_enabled %}
         <div class="grafana-section">
             <h3>📈 Wykresy ruchu sieciowego (24h)</h3>
-            <div class="grafana-embed">
-                <iframe
-                    src="{{ grafana_url }}/d-solo/adptrmz/traffic-all-devices?orgId=1&var-device_ip={{ device.ip_address }}&panelId=1&from=now-24h&to=now&refresh=30s"
-                    width="100%"
-                    height="400"
-                    frameborder="0">
-                </iframe>
-            </div>
-            <div class="grafana-embed">
-                <iframe
-                    src="{{ grafana_url }}/d-solo/adptrmz/traffic-all-devices?orgId=1&var-device_ip={{ device.ip_address }}&panelId=4&from=now-24h&to=now&refresh=30s"
-                    width="100%"
-                    height="400"
-                    frameborder="0">
-                </iframe>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="grafana-embed">
+                    <iframe
+                        src="{{ grafana_url }}/d-solo/adptrmz/traffic-all-devices?orgId=1&var-device_ip={{ device.ip_address }}&panelId=1&from=now-24h&to=now&refresh=30s"
+                        width="100%"
+                        height="300"
+                        frameborder="0">
+                    </iframe>
+                </div>
+                <div class="grafana-embed">
+                    <iframe
+                        src="{{ grafana_url }}/d-solo/adptrmz/traffic-all-devices?orgId=1&var-device_ip={{ device.ip_address }}&panelId=4&from=now-24h&to=now&refresh=30s"
+                        width="100%"
+                        height="300"
+                        frameborder="0">
+                    </iframe>
+                </div>
             </div>
         </div>
         {% else %}
@@ -130,9 +128,9 @@
                 .then(data => {
                     console.log('API Response:', data);  // DEBUG
                     // Aktualizuj prędkości
-                    const downloadElements = document.querySelectorAll('.stat-card:nth-child(1) .stat-value');
-                    const uploadElements = document.querySelectorAll('.stat-card:nth-child(2) .stat-value');
-                    const lastSeenElements = document.querySelectorAll('.stat-card:nth-child(4) .stat-value');
+                    const downloadElements = document.querySelectorAll('.traffic-stat-item:nth-child(1) .traffic-stat-value');
+                    const uploadElements = document.querySelectorAll('.traffic-stat-item:nth-child(2) .traffic-stat-value');
+                    const lastSeenElements = document.querySelectorAll('.traffic-stat-item:nth-child(4) .traffic-stat-value');
                     
                     if (downloadElements.length > 0) {
                         downloadElements[0].textContent = data.download_rate_formatted;

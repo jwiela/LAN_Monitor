@@ -133,19 +133,6 @@
                 </tr>
                 {% endif %}
                 
-                {% if device_info.bytes_in %}
-                <tr>
-                    <td>Ruch przychodzący:</td>
-                    <td><strong style="color:#dc3545">{{ device_info.bytes_in }}</strong></td>
-                </tr>
-                {% endif %}
-                
-                {% if device_info.threshold %}
-                <tr>
-                    <td>Stosunek do średniej:</td>
-                    <td><strong style="color:#dc3545">{{ device_info.threshold }}</strong></td>
-                </tr>
-                {% endif %}
             </table>
         </div>
         {% endif %}

@@ -122,10 +122,9 @@ class EmailManager:
         # Mapowanie typów alertów na tematy
         subject_map = {
             'new_device': '🆕 Nowe urządzenie w sieci',
-            'device_offline': '⚠️ Urządzenie offline',
-            'device_online': '✅ Urządzenie ponownie online',
-            'unusual_traffic': '📊 Nietypowy ruch sieciowy',
-            'high_traffic': '🔥 Wysoki ruch sieciowy',
+            'suspicious_traffic': '⚠️ Podejrzany ruch sieciowy',
+            'arp_spoofing': '🛡️ ALERT: ARP Spoofing',
+            'mac_duplicate': '🔒 ALERT: Duplikat MAC',
         }
         
         subject = subject_map.get(alert_type, '🔔 Alert z LAN Monitor')
@@ -153,11 +152,9 @@ class EmailManager:
         # Emoji dla różnych typów alertów
         emoji_map = {
             'new_device': '🆕',
-            'device_offline': '⚠️',
-            'device_online': '✅',
-            'unusual_traffic': '📊',
-            'high_traffic': '🔥',
-            'ddos_attack': '🚨',
+            'suspicious_traffic': '⚠️',
+            'arp_spoofing': '🛡️',
+            'mac_duplicate': '🔒',
         }
         
         alert_emoji = emoji_map.get(alert_type, '🔔')
@@ -233,10 +230,9 @@ class EmailManager:
         # Mapowanie typów alertów na tematy
         subject_map = {
             'new_device': '🆕 Nowe urządzenie w sieci',
-            'device_offline': '⚠️ Urządzenie offline',
-            'device_online': '✅ Urządzenie ponownie online',
-            'unusual_traffic': '📊 Nietypowy ruch sieciowy',
-            'high_traffic': '🔥 Wysoki ruch sieciowy',
+            'suspicious_traffic': '⚠️ Podejrzany ruch sieciowy',
+            'arp_spoofing': '🛡️ ALERT: ARP Spoofing',
+            'mac_duplicate': '🔒 ALERT: Duplikat MAC',
         }
         
         subject = subject_map.get(alert_type, '🔔 Alert z LAN Monitor')

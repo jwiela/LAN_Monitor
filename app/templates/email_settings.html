@@ -183,10 +183,6 @@
 <body class="dashboard">
     {% include 'navbar.html' %}
 
-    <div class="page-header">
-        <h1>📧 Powiadomienia Email</h1>
-    </div>
-
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -222,14 +218,18 @@
                             <label for="notify_new_device">🆕 Nowe urządzenia w sieci</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" name="notify_unusual_traffic" id="notify_unusual_traffic">
-                            <label for="notify_unusual_traffic">📊 Nietypowy ruch sieciowy</label>
+                            <input type="checkbox" name="notify_suspicious_traffic" id="notify_suspicious_traffic" checked>
+                            <label for="notify_suspicious_traffic">⚠️ Podejrzany ruch sieciowy</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" name="notify_mac_change" id="notify_mac_change" checked>
+                            <label for="notify_mac_change">🔄 Zmiana adresu MAC</label>
                         </div>
                     </div>
                 </div>
                 
                 <div class="form-actions" style="margin-top: 20px;">
-                    <button type="submit" class="btn btn-primary">Dodaj odbiorcę</button>
+                    <button type="submit" class="btn btn-secondary">Dodaj odbiorcę</button>
                 </div>
             </form>
         </div>
@@ -239,7 +239,8 @@
             <h2>👥 Odbiorcy powiadomień ({{ recipients|length }})</h2>
             
             {% if recipients %}
-                <table class="recipients-table">
+                <div style="overflow-x: auto;">
+                    <table class="recipients-table">
                     <thead>
                         <tr>
                             <th>Email</th>
@@ -258,7 +259,8 @@
                             <td>
                                 <div class="notification-checks">
                                     {% if recipient.notify_new_device %}🆕{% endif %}
-                                    {% if recipient.notify_unusual_traffic %}📊{% endif %}
+                                    {% if recipient.notify_suspicious_traffic %}⚠️{% endif %}
+                                    {% if recipient.notify_mac_change %}🔄{% endif %}
                                 </div>
                             </td>
                             <td>
@@ -271,7 +273,7 @@
                             <td>{{ recipient.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>
                                 <div class="recipient-actions">
-                                    <button onclick="openEditModal({{ recipient.id }}, '{{ recipient.email }}', '{{ recipient.name or '' }}', {{ recipient.notify_new_device|tojson }}, {{ recipient.notify_unusual_traffic|tojson }})" 
+                                    <button onclick="openEditModal({{ recipient.id }}, '{{ recipient.email }}', '{{ recipient.name or '' }}', {{ recipient.notify_new_device|tojson }}, {{ recipient.notify_suspicious_traffic|tojson }}, {{ recipient.notify_mac_change|tojson }})" 
                                             class="btn btn-secondary btn-icon">✏️</button>
                                     <form method="POST" action="{{ url_for('main.toggle_email_recipient', recipient_id=recipient.id) }}" style="display: inline;">
                                         <button type="submit" class="btn btn-secondary btn-icon">
@@ -288,6 +290,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                </div>
             {% else %}
                 <div class="empty-state">
                     <div class="empty-icon">📭</div>
@@ -323,8 +326,12 @@
                         <span>🆕 Nowe urządzenia w sieci</span>
                     </label>
                     <label>
-                        <input type="checkbox" name="notify_unusual_traffic" id="edit_notify_unusual_traffic">
-                        <span>📊 Nietypowy ruch sieciowy</span>
+                        <input type="checkbox" name="notify_suspicious_traffic" id="edit_notify_suspicious_traffic">
+                        <span>⚠️ Podejrzany ruch sieciowy</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify_mac_change" id="edit_notify_mac_change">
+                        <span>🔄 Zmiana adresu MAC</span>
                     </label>
                 </div>
                 
@@ -337,14 +344,15 @@
     </div>
 
     <script>
-        function openEditModal(id, email, name, new_device, unusual) {
+        function openEditModal(id, email, name, new_device, suspicious, mac_change) {
             const form = document.getElementById('editRecipientForm');
             form.action = `/settings/email/recipients/${id}/edit`;
             
             document.getElementById('edit_email').value = email;
             document.getElementById('edit_name').value = name;
             document.getElementById('edit_notify_new_device').checked = new_device;
-            document.getElementById('edit_notify_unusual_traffic').checked = unusual;
+            document.getElementById('edit_notify_suspicious_traffic').checked = suspicious;
+            document.getElementById('edit_notify_mac_change').checked = mac_change;
             
             document.getElementById('editRecipientModal').classList.add('active');
         }

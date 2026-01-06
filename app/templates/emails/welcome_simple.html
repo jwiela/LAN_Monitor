@@ -68,8 +68,12 @@
             <div class="alert-badge">🆕 Nowe urządzenia w sieci</div>
             {% endif %}
             
-            {% if notify_unusual_traffic %}
-            <div class="alert-badge">📊 Nietypowy ruch sieciowy</div>
+            {% if notify_suspicious_traffic %}
+            <div class="alert-badge">⚠️ Podejrzany ruch sieciowy</div>
+            {% endif %}
+            
+            {% if notify_mac_change %}
+            <div class="alert-badge">🔄 Zmiana adresu MAC</div>
             {% endif %}
         </div>
         

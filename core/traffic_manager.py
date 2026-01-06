@@ -21,11 +21,10 @@ class TrafficManager:
         self.running = False
         self.update_thread = None
         
-        # Parametry wykrywania DDoS
-        self.ddos_threshold_multiplier = 3.0  # Ruch > 3x średnia = potencjalny DDoS (obniżone z 5x)
-        self.ddos_min_packets = 5000  # Minimalna liczba pakietów/min do uznania za DDoS (obniżone z 10000)
-        self.device_baselines = {}  # Średnie wartości ruchu dla urządzeń
-        self.ddos_alerts_sent = {}  # Tracking wysłanych alertów (aby nie spamować)
+        # Parametry wykrywania podejrzanego ruchu
+        self.traffic_threshold_mbps = 80  # Próg ruchu w Mbps (80 Mbps = 10 MB/s)
+        self.traffic_min_packets = 15000  # Minimalna liczba pakietów/min do uznania za podejrzany ruch
+        self.suspicious_alerts_sent = {}  # Tracking wysłanych alertów (aby nie spamować)
         
         if app:
             self.init_app(app)
@@ -79,18 +78,29 @@ class TrafficManager:
         """Pętla aktualizacji - pobiera statystyki i zapisuje do bazy"""
         update_interval = self.app.config.get('TRAFFIC_UPDATE_INTERVAL', 60)
         logger.info(f"▶️ Uruchomiono pętlę aktualizacji, interwał: {update_interval}s")
+        logger.info(f"⏳ Czekam {update_interval}s na zebranie pierwszych statystyk...")
         
         while self.running:
             try:
+                # Najpierw czekaj, żeby monitor zebrał dane
+                time.sleep(update_interval)
+                
                 logger.info("🔄 Rozpoczęcie cyklu aktualizacji...")
                 
                 # Pobierz statystyki (z resetem)
                 stats = self.traffic_monitor.get_stats(reset=True)
                 logger.info(f"📊 Pobrano statystyki dla {len(stats)} urządzeń")
                 
+                # Zawsze wywołuj sprawdzanie, nawet jeśli stats jest puste (dla debugowania)
+                if stats:
+                    logger.info(f"📋 Urządzenia w statystykach: {list(stats.keys())}")
+                else:
+                    logger.warning("⚠️ Brak statystyk ruchu - monitor może nie zbierać danych!")
+                
                 if not stats:
-                    logger.debug("Brak statystyk ruchu")
-                    time.sleep(update_interval)
+                    logger.debug("Brak statystyk ruchu - przeskakuję do następnego cyklu")
+                    # NADAL SPRAWDZAMY ALERTY (na wypadek gdyby stats było puste)
+                    self._check_for_suspicious_traffic(stats)
                     continue
                 
                 # Oblicz i loguj podsumowanie
@@ -122,23 +132,20 @@ class TrafficManager:
                 # Zapisz do SQLite (DeviceActivity)
                 self._save_to_sqlite(stats)
                 
-                # Sprawdź czy nie ma potencjalnego ataku DDoS
-                self._check_for_ddos(stats)
-                
-                # Czekaj przed następnym cyklem
-                time.sleep(update_interval)
+                # Sprawdź czy nie ma podejrzanego ruchu sieciowego
+                self._check_for_suspicious_traffic(stats)
                 
             except Exception as e:
                 logger.error(f"❌ Błąd w pętli aktualizacji: {e}", exc_info=True)
                 time.sleep(update_interval)
     
-    def _check_for_ddos(self, stats):
+    def _check_for_suspicious_traffic(self, stats):
         """
-        Sprawdza czy wykryto potencjalny atak DDoS
+        Sprawdza czy wykryto podejrzany ruch sieciowy
         
         Kryteria:
-        - Liczba pakietów przychodzących > ddos_min_packets w ciągu update_interval
-        - Ruch przychodzący > ddos_threshold_multiplier * średnia historyczna
+        - Liczba pakietów przychodzących > traffic_min_packets w ciągu update_interval
+        - Prędkość ruchu przychodzącego > traffic_threshold_mbps
         """
         try:
             from app import db
@@ -146,140 +153,131 @@ class TrafficManager:
             from flask import render_template
             import time
             
-            logger.info(f"🔍 Sprawdzam DDoS dla {len(stats)} urządzeń...")
+            logger.info(f"🔍 === SPRAWDZANIE PODEJRZANEGO RUCHU ===")
+            logger.info(f"🔍 Liczba urządzeń do sprawdzenia: {len(stats)}")
+            logger.info(f"🔍 Progi: {self.traffic_threshold_mbps} Mbps, {self.traffic_min_packets} pkt/min")
+            
+            if not stats:
+                logger.info(f"🔍 Brak statystyk - monitor może nie zbierać danych lub brak ruchu")
+                return
             
             with self.app.app_context():
                 current_time = time.time()
+                update_interval = self.app.config.get('TRAFFIC_UPDATE_INTERVAL', 60)
                 
                 for ip, data in stats.items():
                     packets_in = data.get('packets_in', 0)
                     bytes_in = data.get('bytes_in', 0)
                     
-                    # Sprawdź czy przekroczono minimalny próg pakietów
-                    update_interval = self.app.config.get('TRAFFIC_UPDATE_INTERVAL', 60)
+                    # Oblicz prędkość w Mbps
+                    bytes_per_second = bytes_in / update_interval
+                    mbps = (bytes_per_second * 8) / (1024 * 1024)  # Konwersja na Mbps
+                    
+                    # Oblicz pakiety na minutę
                     packets_per_minute = (packets_in / update_interval) * 60
                     
-                    logger.info(f"  {ip}: {packets_in} pakietów ({packets_per_minute:.0f}/min, próg: {self.ddos_min_packets})")
+                    logger.info(f"  🔍 {ip}: {packets_in} pakietów ({packets_per_minute:.0f}/min), "
+                               f"{mbps:.1f} Mbps (próg: {self.traffic_threshold_mbps} Mbps, "
+                               f"{self.traffic_min_packets} pkt/min)")
                     
-                    if packets_per_minute < self.ddos_min_packets:
+                    # Sprawdź czy przekroczono KTÓRYKOLWIEK z progów (LUB, nie I)
+                    packets_exceeded = packets_per_minute >= self.traffic_min_packets
+                    mbps_exceeded = mbps >= self.traffic_threshold_mbps
+                    
+                    if not packets_exceeded and not mbps_exceeded:
+                        logger.info(f"  ⏭️ {ip}: Nie przekroczono żadnego progu (pakiety: {packets_per_minute:.0f}/{self.traffic_min_packets}, Mbps: {mbps:.1f}/{self.traffic_threshold_mbps})")
                         continue
                     
-                    logger.info(f"⚠️ {ip} przekroczył próg pakietów: {packets_per_minute:.0f}/min > {self.ddos_min_packets}")
+                    # Loguj który próg został przekroczony
+                    exceeded_info = []
+                    if packets_exceeded:
+                        exceeded_info.append(f"pakiety: {packets_per_minute:.0f} >= {self.traffic_min_packets}")
+                    if mbps_exceeded:
+                        exceeded_info.append(f"Mbps: {mbps:.1f} >= {self.traffic_threshold_mbps}")
                     
-                    # Pobierz lub utwórz baseline dla urządzenia
-                    baseline = self.device_baselines.get(ip)
-                    if baseline is None:
-                        # Dla nowego urządzenia ustaw niski baseline (10% obecnego ruchu)
-                        # aby przy następnym wysokim ruchu mógł zostać wykryty atak
-                        low_baseline = max(packets_in * 0.1, 100)  # Minimum 100 pakietów
-                        self.device_baselines[ip] = {
-                            'avg_packets_in': low_baseline,
-                            'avg_bytes_in': bytes_in * 0.1,
-                            'samples': 1
+                    logger.warning(f"⚠️ {ip} przekroczył progi: {' | '.join(exceeded_info)}")
+                    
+                    # Cooldown wyłączony dla testów
+                    # last_alert_time = self.suspicious_alerts_sent.get(ip, 0)
+                    # if current_time - last_alert_time < 1800:  # 30 minut
+                    #     logger.info(f"⏭️ {ip}: Alert już wysłany {(current_time - last_alert_time)/60:.1f} min temu, pomijam")
+                    #     continue
+                    
+                    # Podejrzany ruch wykryty!
+                    device = Device.query.filter_by(ip_address=ip).first()
+                    
+                    if not device:
+                        logger.error(f"❌ {ip}: Nie znaleziono urządzenia w bazie danych!")
+                        continue
+                    
+                    logger.warning(f"🚨 Podejrzany ruch sieciowy wykryty na {ip}! "
+                                 f"Prędkość: {mbps:.1f} Mbps, Pakiety: {packets_per_minute:.0f}/min")
+                    
+                    # Utwórz alert w bazie
+                    alert = Alert(
+                        device_id=device.id,
+                        alert_type='suspicious_traffic',
+                        severity='warning',
+                        message=f"Wykryto podejrzanie wysoki ruch sieciowy na urządzeniu {device.hostname or device.ip_address}. "
+                               f"Prędkość: {mbps:.1f} Mbps, "
+                               f"Liczba pakietów: {packets_per_minute:.0f}/min."
+                    )
+                    db.session.add(alert)
+                    db.session.commit()
+                    
+                    # Wyślij powiadomienia email
+                    recipients = EmailRecipient.query.filter_by(is_active=True).all()
+                    active_recipients = [r for r in recipients if r.should_notify('suspicious_traffic')]
+                    
+                    logger.info(f"📧 Znaleziono {len(recipients)} odbiorców, aktywnych dla suspicious_traffic: {len(active_recipients)}")
+                    
+                    if active_recipients:
+                        logger.info(f"📧 Wysyłam alerty o podejrzanym ruchu do: {[r.email for r in active_recipients]}")
+                        from core.email_manager import EmailManager
+                        from config import Config
+                        email_manager = EmailManager(Config)
+                        
+                        device_info = {
+                            'ip': device.ip_address,
+                            'hostname': device.hostname or 'Nieznany',
+                            'vendor': device.vendor or 'Nieznany',
+                            'packets_per_min': f"{packets_per_minute:.0f}",
+                            'speed_mbps': f"{mbps:.1f} Mbps",
+                            'threshold': f"{self.traffic_threshold_mbps} Mbps"
                         }
-                        logger.info(f"📊 Utworzono baseline dla {ip}: {low_baseline:.0f} pakietów (10% obecnego ruchu)")
-                        # Kontynuuj sprawdzanie DDoS z tym niskim baseline
-                    
-                    baseline = self.device_baselines[ip]
-                    avg_packets = baseline['avg_packets_in']
-                    
-                    # Sprawdź czy ruch przekracza próg (3x średnia)
-                    multiplier = packets_in / avg_packets if avg_packets > 0 else 0
-                    logger.info(f"📊 {ip}: Baseline avg={avg_packets:.0f}, current={packets_in}, multiplier={multiplier:.1f}x (próg: {self.ddos_threshold_multiplier}x)")
-                    
-                    if packets_in > avg_packets * self.ddos_threshold_multiplier:
-                        logger.warning(f"🚨 {ip} przekroczył próg DDoS: {multiplier:.1f}x > {self.ddos_threshold_multiplier}x")
                         
-                        # Sprawdź czy nie wysłaliśmy już alertu w ostatnich 10 minutach
-                        last_alert_time = self.ddos_alerts_sent.get(ip, 0)
-                        if current_time - last_alert_time < 600:  # 10 minut
-                            logger.info(f"⏭️ {ip}: Alert już wysłany {(current_time - last_alert_time)/60:.1f} min temu, pomijam")
-                            continue
-                        
-                        # Potencjalny DDoS wykryty!
-                        device = Device.query.filter_by(ip_address=ip).first()
-                        
-                        if not device:
-                            logger.error(f"❌ {ip}: Nie znaleziono urządzenia w bazie danych!")
-                            continue
-                        
-                        logger.warning(f"🚨 Potencjalny atak DDoS wykryty na {ip}! "
-                                     f"Pakiety: {packets_in} (średnia: {avg_packets:.0f})")
-                        
-                        # Utwórz alert w bazie
-                        alert = Alert(
-                            device_id=device.id,
-                            alert_type='ddos_attack',
-                            severity='critical',
-                            message=f"Wykryto nietypowo wysoki ruch przychodzący na urządzeniu {device.hostname or device.ip_address}. "
-                                   f"Liczba pakietów: {packets_in:,} ({packets_per_minute:.0f}/min), "
-                                   f"co jest {(packets_in/avg_packets):.1f}x większe niż średnia historyczna."
+                        message = (
+                            f"Wykryto podejrzanie wysoki ruch sieciowy na urządzeniu {device.ip_address}.\n\n"
+                            f"Szczegóły:\n"
+                            f"• Intensywność: {packets_per_minute:.0f} pakietów/min\n\n"
+                            f". Sprawdź urządzenie jeśli ruch jest nieoczekiwany."
                         )
-                        db.session.add(alert)
-                        db.session.commit()
                         
-                        # Wyślij powiadomienia email
-                        recipients = EmailRecipient.query.filter_by(is_active=True).all()
-                        active_recipients = [r for r in recipients if r.should_notify('ddos_attack')]
+                        for recipient in active_recipients:
+                            try:
+                                html_body = render_template('emails/alert_simple.html',
+                                                           alert_emoji='⚠️',
+                                                           message=message,
+                                                           device_info=device_info,
+                                                           timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                                
+                                email_manager.send_email(
+                                    subject='⚠️ ALERT: Wykryto podejrzany ruch sieciowy',
+                                    body=html_body,
+                                    to_email=recipient.email,
+                                    html=True
+                                )
+                                logger.info(f"📧 Alert wysłany do {recipient.email}")
+                            except Exception as e:
+                                logger.error(f"❌ Błąd wysyłania alertu do {recipient.email}: {e}")
                         
-                        logger.info(f"📧 Znaleziono {len(recipients)} odbiorców, aktywnych dla DDoS: {len(active_recipients)}")
-                        
-                        if active_recipients:
-                            logger.info(f"📧 Wysyłam alerty DDoS do: {[r.email for r in active_recipients]}")
-                            from core.email_manager import EmailManager
-                            from config import Config
-                            email_manager = EmailManager(Config)
-                            
-                            device_info = {
-                                'ip': device.ip_address,
-                                'hostname': device.hostname or 'Nieznany',
-                                'vendor': device.vendor or 'Nieznany',
-                                'packets_in': f"{packets_in:,}",
-                                'packets_per_min': f"{packets_per_minute:.0f}",
-                                'bytes_in': f"{bytes_in / (1024*1024):.2f} MB",
-                                'threshold': f"{(packets_in/avg_packets):.1f}x średnia"
-                            }
-                            
-                            message = (
-                                f"Wykryto potencjalny atak DDoS na urządzeniu {device.hostname or device.ip_address} ({device.ip_address}).\n\n"
-                                f"Szczegóły:\n"
-                                f"• Liczba pakietów przychodzących: {packets_in:,}\n"
-                                f"• Intensywność: {packets_per_minute:.0f} pakietów/min\n"
-                                f"• Ruch przychodzący: {bytes_in / (1024*1024):.2f} MB\n"
-                                f"• Stosunek do średniej: {(packets_in/avg_packets):.1f}x\n\n"
-                                f"Sprawdź urządzenie i podejmij odpowiednie działania."
-                            )
-                            
-                            for recipient in active_recipients:
-                                try:
-                                    html_body = render_template('emails/alert_simple.html',
-                                                               alert_emoji='⚠️',
-                                                               message=message,
-                                                               device_info=device_info,
-                                                               timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-                                    
-                                    email_manager.send_email(
-                                        subject='⚠️ ALERT: Potencjalny atak DDoS wykryty!',
-                                        body=html_body,
-                                        to_email=recipient.email,
-                                        html=True
-                                    )
-                                    logger.info(f"📧 Alert DDoS wysłany do {recipient.email}")
-                                except Exception as e:
-                                    logger.error(f"❌ Błąd wysyłania alertu DDoS do {recipient.email}: {e}")
-                            
-                            # Zaznacz czas wysłania alertu
-                            self.ddos_alerts_sent[ip] = current_time
-                        else:
-                            logger.info("📧 Brak aktywnych odbiorców dla alertów DDoS")
-                    
-                    # Aktualizuj baseline (exponential moving average)
-                    baseline['avg_packets_in'] = (baseline['avg_packets_in'] * 0.9) + (packets_in * 0.1)
-                    baseline['avg_bytes_in'] = (baseline['avg_bytes_in'] * 0.9) + (bytes_in * 0.1)
-                    baseline['samples'] += 1
+                        # Zaznacz czas wysłania alertu
+                        self.suspicious_alerts_sent[ip] = current_time
+                    else:
+                        logger.info("📧 Brak aktywnych odbiorców dla alertów o podejrzanym ruchu")
                     
         except Exception as e:
-            logger.error(f"❌ Błąd sprawdzania DDoS: {e}", exc_info=True)
+            logger.error(f"❌ Błąd sprawdzania podejrzanego ruchu: {e}", exc_info=True)
     
     def _save_to_sqlite(self, stats):
         """Zapisuje statystyki do tabeli DeviceActivity w SQLite"""

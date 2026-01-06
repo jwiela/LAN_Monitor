@@ -10,46 +10,43 @@
     <!-- Navbar -->
     {% include 'navbar.html' %}
 
-    <!-- Page Header -->
-    <div class="page-header">
-        <h1>🔔 Alerty - {{ period_name }}</h1>
-        <div class="header-actions">
-            <span class="badge badge-new">{{ unread_count }} nieprzeczytanych</span>
-        </div>
-    </div>
-
     <div class="container">
         <!-- Filter buttons -->
-        <div class="filter-buttons" style="margin-bottom: 30px;">
-            <a href="{{ url_for('main.alerts_page', period='1') }}" 
-               class="btn-filter {% if period == '1' %}active{% endif %}">
-                Ostatnia godzina
-            </a>
-            <a href="{{ url_for('main.alerts_page', period='24') }}" 
-               class="btn-filter {% if period == '24' %}active{% endif %}">
-                Ostatnie 24h
-            </a>
-            <a href="{{ url_for('main.alerts_page', period='168') }}" 
-               class="btn-filter {% if period == '168' %}active{% endif %}">
-                Ostatni tydzień
-            </a>
-            <a href="{{ url_for('main.alerts_page', period='all') }}" 
-               class="btn-filter {% if period == 'all' %}active{% endif %}">
-                Wszystkie
-            </a>
+        <div class="filter-buttons" style="margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span class="badge badge-new" style="margin-right: 15px;">{{ unread_count }} nieprzeczytanych</span>
+                <a href="{{ url_for('main.alerts_page', period='1') }}" 
+                   class="btn-filter {% if period == '1' %}active{% endif %}">
+                    Ostatnia godzina
+                </a>
+                <a href="{{ url_for('main.alerts_page', period='24') }}" 
+                   class="btn-filter {% if period == '24' %}active{% endif %}">
+                    Ostatnie 24h
+                </a>
+                <a href="{{ url_for('main.alerts_page', period='168') }}" 
+                   class="btn-filter {% if period == '168' %}active{% endif %}">
+                    Ostatni tydzień
+                </a>
+                <a href="{{ url_for('main.alerts_page', period='all') }}" 
+                   class="btn-filter {% if period == 'all' %}active{% endif %}">
+                    Wszystkie
+                </a>
+            </div>
         </div>
 
         <!-- Lista alertów -->
         <div class="content-section">
             {% if alerts %}
-                <div class="alerts-list">
+                <div class="alerts-list" style="max-height: 600px; overflow-y: auto;">
                     {% for alert in alerts %}
                         <div class="alert-item {% if not alert.is_read %}alert-unread{% endif %}">
                             <div class="alert-icon">
                                 {% if alert.alert_type == 'new_device' %}
                                     🆕
-                                {% elif alert.alert_type == 'device_offline' %}
+                                {% elif alert.alert_type == 'suspicious_traffic' %}
                                     ⚠️
+                                {% elif alert.alert_type == 'mac_change' %}
+                                    🔄
                                 {% elif alert.alert_type == 'unusual_traffic' %}
                                     📊
                                 {% else %}
@@ -60,7 +57,7 @@
                                 <strong>{{ alert.message }}</strong>
                                 <p>
                                     {% if alert.device %}
-                                        Urządzenie: {{ alert.device.hostname or 'Nieznane' }} ({{ alert.device.ip_address }})
+                                        Urządzenie: {{ alert.device.ip_address }}
                                     {% endif %}
                                 </p>
                                 <small>{{ alert.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>

@@ -143,6 +143,23 @@ def mark_all_alerts_read():
     return redirect(request.referrer or url_for('main.dashboard'))
 
 
+@main_bp.route('/api/alerts/mark-all-read', methods=['POST'])
+@login_required
+def mark_all_alerts_read_api():
+    """API endpoint oznaczający wszystkie alerty jako przeczytane"""
+    Alert.query.filter_by(is_read=False).update({'is_read': True})
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+
+@main_bp.route('/api/alerts/unread-count')
+@login_required
+def get_unread_count_api():
+    """API endpoint zwracający liczbę nieprzeczytanych alertów"""
+    count = Alert.query.filter_by(is_read=False).count()
+    return jsonify({'count': count})
+
+
 @main_bp.route('/api/alerts/recent')
 @login_required
 def get_recent_alerts_api():
@@ -156,7 +173,18 @@ def get_recent_alerts_api():
     alerts_data = []
     for alert in alerts:
         # Ikona w zależności od typu alertu
-        icon = '🆕' if alert.alert_type == 'new_device' else '🔔'
+        if alert.alert_type == 'new_device':
+            icon = '🆕'
+            type_name = 'Nowe urządzenie'
+        elif alert.alert_type == 'suspicious_traffic':
+            icon = '⚠️'
+            type_name = 'Podejrzany ruch sieciowy'
+        elif alert.alert_type == 'mac_change':
+            icon = '🔄'
+            type_name = 'Zmiana adresu MAC'
+        else:
+            icon = '🔔'
+            type_name = alert.alert_type.replace('_', ' ').title()
         
         # Formatowanie czasu
         time_diff = datetime.now() - alert.created_at
@@ -171,7 +199,7 @@ def get_recent_alerts_api():
         
         alerts_data.append({
             'id': alert.id,
-            'alert_type': alert.alert_type.replace('_', ' ').title(),
+            'alert_type': type_name,
             'message': alert.message,
             'time': time_str,
             'is_read': alert.is_read,
@@ -515,17 +543,16 @@ def add_email_recipient():
         
         # Pobierz preferencje powiadomień
         notify_new_device = request.form.get('notify_new_device') == 'on'
-        notify_unusual_traffic = request.form.get('notify_unusual_traffic') == 'on'
+        notify_suspicious_traffic = request.form.get('notify_suspicious_traffic') == 'on'
+        notify_mac_change = request.form.get('notify_mac_change') == 'on'
         
         # Utwórz nowego odbiorcę
         recipient = EmailRecipient(
             email=email,
             name=name,
             notify_new_device=notify_new_device,
-            notify_device_offline=False,
-            notify_device_online=False,
-            notify_unusual_traffic=notify_unusual_traffic,
-            notify_high_traffic=False
+            notify_suspicious_traffic=notify_suspicious_traffic,
+            notify_mac_change=notify_mac_change
         )
         
         db.session.add(recipient)
@@ -541,7 +568,8 @@ def add_email_recipient():
                                           recipient_email=email,
                                           current_date=datetime.now().strftime('%d.%m.%Y %H:%M'),
                                           notify_new_device=notify_new_device,
-                                          notify_unusual_traffic=notify_unusual_traffic)
+                                          notify_suspicious_traffic=notify_suspicious_traffic,
+                                          notify_mac_change=notify_mac_change)
                 
                 subject = "Witaj w systemie LAN Monitor!"
                 welcome_sent = email_manager.send_email(subject, html_body, to_email=email, html=True)
@@ -579,10 +607,8 @@ def edit_email_recipient(recipient_id):
         
         # Aktualizuj preferencje
         recipient.notify_new_device = request.form.get('notify_new_device') == 'on'
-        recipient.notify_device_offline = False
-        recipient.notify_device_online = False
-        recipient.notify_unusual_traffic = request.form.get('notify_unusual_traffic') == 'on'
-        recipient.notify_high_traffic = False
+        recipient.notify_suspicious_traffic = request.form.get('notify_suspicious_traffic') == 'on'
+        recipient.notify_mac_change = request.form.get('notify_mac_change') == 'on'
         
         db.session.commit()
         flash(f'✅ Zaktualizowano preferencje dla {recipient.email}', 'success')
