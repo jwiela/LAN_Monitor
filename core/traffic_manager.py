@@ -23,7 +23,7 @@ class TrafficManager:
         
         # Parametry wykrywania podejrzanego ruchu
         self.traffic_threshold_mbps = 80  # Próg ruchu w Mbps (80 Mbps = 10 MB/s)
-        self.traffic_min_packets = 15000  # Minimalna liczba pakietów/min do uznania za podejrzany ruch
+        self.traffic_min_packets = 50000  # Minimalna liczba pakietów/min do uznania za podejrzany ruch
         self.suspicious_alerts_sent = {}  # Tracking wysłanych alertów (aby nie spamować)
         
         if app:
@@ -197,11 +197,15 @@ class TrafficManager:
                     
                     logger.warning(f"⚠️ {ip} przekroczył progi: {' | '.join(exceeded_info)}")
                     
-                    # Cooldown wyłączony dla testów
-                    # last_alert_time = self.suspicious_alerts_sent.get(ip, 0)
-                    # if current_time - last_alert_time < 1800:  # 30 minut
-                    #     logger.info(f"⏭️ {ip}: Alert już wysłany {(current_time - last_alert_time)/60:.1f} min temu, pomijam")
-                    #     continue
+                    # Cooldown - nie wysyłaj alertu jeśli niedawno wysłano
+                    last_alert_time = self.suspicious_alerts_sent.get(ip, 0)
+                    time_since_last = (current_time - last_alert_time) / 60  # w minutach
+                    if current_time - last_alert_time < 1800:  # 30 minut
+                        logger.info(f"⏭️ {ip}: Alert już wysłany {time_since_last:.1f} min temu, pomijam (cooldown: 30 min)")
+                        continue
+                    
+                    if last_alert_time > 0:
+                        logger.info(f"✅ {ip}: Cooldown minął ({time_since_last:.1f} min), wysyłam alert")
                     
                     # Podejrzany ruch wykryty!
                     device = Device.query.filter_by(ip_address=ip).first()

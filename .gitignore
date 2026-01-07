@@ -42,3 +42,5 @@ htmlcov/
 # Network captures
 *.pcap
 *.pcapng
+
+nohup.out

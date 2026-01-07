@@ -573,7 +573,7 @@ body {
 
 /* Devices Table */
 .devices-table-container {
-    max-height: 500px;
+    max-height: 280px;
     overflow-y: auto;
     border-radius: 8px;
     border: 1px solid #e5e7eb;
