@@ -38,6 +38,7 @@ instance/
 .pytest_cache/
 .coverage
 htmlcov/
+tests/
 
 # Network captures
 *.pcap

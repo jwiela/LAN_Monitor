@@ -3,13 +3,12 @@ Modele bazy danych dla aplikacji
 """
 from datetime import datetime
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+import bcrypt
 from app import db, login_manager
 from config import Config
 
-
+"""Model użytkownika"""
 class User(UserMixin, db.Model):
-    """Model użytkownika"""
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -18,21 +17,25 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     last_login = db.Column(db.DateTime, nullable=True)
-    
+
+    """Ustaw zahashowane hasło"""
     def set_password(self, password):
-        """Ustaw zahashowane hasło"""
-        self.password_hash = generate_password_hash(password)
-    
+        salt = bcrypt.gensalt()
+        self.password_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+    """Sprawdź poprawność hasła"""
     def check_password(self, password):
-        """Sprawdź poprawność hasła"""
-        return check_password_hash(self.password_hash, password)
+        if not self.password_hash:
+            return False
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
     
+    """Reprezentacja użytkownika"""
     def __repr__(self):
         return f'<User {self.username}>'
 
 
+"""Model urządzenia w sieci"""
 class Device(db.Model):
-    """Model urządzenia w sieci"""
     __tablename__ = 'devices'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -50,23 +53,18 @@ class Device(db.Model):
     activities = db.relationship('DeviceActivity', backref='device', lazy='dynamic', 
                                 cascade='all, delete-orphan')
     
+    """Aktualizuj czas ostatniego widzenia urządzenia"""
     def update_last_seen(self):
-        """Aktualizuj czas ostatniego widzenia urządzenia"""
         self.last_seen = datetime.now()
         self.is_online = True
         db.session.commit()
     
-    def mark_offline(self):
-        """Oznacz urządzenie jako offline"""
-        self.is_online = False
-        db.session.commit()
-    
+    """Reprezentacja urządzenia"""
     def __repr__(self):
         return f'<Device {self.mac_address} ({self.ip_address})>'
 
-
+"""Model aktywności urządzenia (ruch sieciowy)"""
 class DeviceActivity(db.Model):
-    """Model aktywności urządzenia (ruch sieciowy)"""
     __tablename__ = 'device_activities'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -79,15 +77,15 @@ class DeviceActivity(db.Model):
     packets_sent = db.Column(db.Integer, default=0)
     packets_received = db.Column(db.Integer, default=0)
     
-    # Statystyki protokołów (JSON: {"http": 1234, "https": 5678, ...})
+    # Statystyki protokołów 
     protocol_stats = db.Column(db.Text, nullable=True)
     
+    """Reprezentacja aktywności urządzenia"""
     def __repr__(self):
         return f'<DeviceActivity {self.device_id} at {self.timestamp}>'
 
-
+"""Model alertów systemowych"""
 class Alert(db.Model):
-    """Model alertów systemowych"""
     __tablename__ = 'alerts'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -101,12 +99,12 @@ class Alert(db.Model):
     
     device = db.relationship('Device', backref='alerts')
     
+    """Reprezentacja alertu"""
     def __repr__(self):
         return f'<Alert {self.alert_type} - {self.severity}>'
 
-
+"""Model odbiorcy powiadomień email"""
 class EmailRecipient(db.Model):
-    """Model odbiorcy powiadomień email"""
     __tablename__ = 'email_recipients'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -120,11 +118,12 @@ class EmailRecipient(db.Model):
     notify_suspicious_traffic = db.Column(db.Boolean, default=True)
     notify_mac_change = db.Column(db.Boolean, default=True)  # Zmiana adresu MAC
     
+    """Reprezentacja odbiorcy email"""
     def __repr__(self):
         return f'<EmailRecipient {self.email}>'
     
+    """Sprawdź czy odbiorca chce otrzymywać dany typ alertu"""
     def should_notify(self, alert_type):
-        """Sprawdź czy odbiorca powinien otrzymać powiadomienie o danym typie alertu"""
         mapping = {
             'new_device': self.notify_new_device,
             'suspicious_traffic': self.notify_suspicious_traffic,
@@ -132,9 +131,8 @@ class EmailRecipient(db.Model):
         }
         return mapping.get(alert_type, False)
 
-
+"""Model wygenerowanego raportu urządzenia"""
 class DeviceReport(db.Model):
-    """Model wygenerowanego raportu urządzenia"""
     __tablename__ = 'device_reports'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -146,12 +144,13 @@ class DeviceReport(db.Model):
     # Relacja
     device = db.relationship('Device', backref=db.backref('reports', lazy='dynamic'))
     
+    """Reprezentacja raportu urządzenia"""
     def __repr__(self):
         return f'<DeviceReport {self.device.ip_address} - {self.period_days}d>'
     
+    """Zwróć nazwę okresu"""
     @property
     def period_name(self):
-        """Zwróć nazwę okresu"""
         if self.period_days == 1:
             return 'Dzienny'
         elif self.period_days == 7:
@@ -160,17 +159,13 @@ class DeviceReport(db.Model):
             return 'Miesięczny'
         return f'{self.period_days} dni'
 
-
+"""Callback do ładowania użytkownika dla Flask-Login"""
 @login_manager.user_loader
 def load_user(user_id):
-    """Callback do ładowania użytkownika dla Flask-Login"""
     return User.query.get(int(user_id))
 
-
+"""Inicjalizuj domyślnego użytkownika admin, jeśli nie istnieje"""
 def init_default_user():
-    """
-    Inicjalizuj domyślnego użytkownika admin, jeśli nie istnieje
-    """
     admin = User.query.filter_by(username=Config.ADMIN_USERNAME).first()
     if not admin:
         admin = User(username=Config.ADMIN_USERNAME)

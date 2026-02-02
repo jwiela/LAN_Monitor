@@ -14,15 +14,8 @@ login_manager = LoginManager()
 mail = Mail()
 
 def create_app(config_name='default'):
-    """
-    Factory function do tworzenia aplikacji Flask
     
-    Args:
-        config_name: Nazwa konfiguracji ('development', 'production', 'default')
-    
-    Returns:
-        Skonfigurowana aplikacja Flask
-    """
+    """Funkcja tworząca i konfigurująca aplikację Flask"""
     app = Flask(__name__)
     
     # Załaduj konfigurację

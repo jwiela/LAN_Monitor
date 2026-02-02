@@ -31,7 +31,17 @@ def dashboard():
     from core.traffic_manager import traffic_manager
     
     # Pobierz tylko AKTYWNE urządzenia
-    devices = Device.query.filter_by(is_online=True).order_by(desc(Device.last_seen)).all()
+    # Sortuj: 1) ostatnio widziane (desc), 2) adres IP rosnąco po X
+    devices = Device.query.filter_by(is_online=True).all()
+    def sort_key_minute(dev):
+        if dev.last_seen:
+            dt = dev.last_seen.replace(second=0, microsecond=0)
+            ts = dt.timestamp()
+        else:
+            ts = 0
+        ip_x = int(dev.ip_address.split('.')[-1]) if dev.ip_address and dev.ip_address.count('.') == 3 and dev.ip_address.split('.')[-1].isdigit() else 0
+        return (-ts, ip_x)
+    devices.sort(key=sort_key_minute)
     
     # Statystyki
     total_devices = Device.query.count()
@@ -58,8 +68,19 @@ def dashboard():
 def all_devices():
     """Strona ze wszystkimi urządzeniami (aktywne i nieaktywne)"""
     # Pobierz wszystkie urządzenia pogrupowane
-    active_devices = Device.query.filter_by(is_online=True).order_by(desc(Device.last_seen)).all()
-    inactive_devices = Device.query.filter_by(is_online=False).order_by(desc(Device.last_seen)).all()
+    active_devices = Device.query.filter_by(is_online=True).all()
+    inactive_devices = Device.query.filter_by(is_online=False).all()
+    # Sortowanie aktywnych
+    def sort_key_minute(dev):
+        if dev.last_seen:
+            dt = dev.last_seen.replace(second=0, microsecond=0)
+            ts = dt.timestamp()
+        else:
+            ts = 0
+        ip_x = int(dev.ip_address.split('.')[-1]) if dev.ip_address and dev.ip_address.count('.') == 3 and dev.ip_address.split('.')[-1].isdigit() else 0
+        return (-ts, ip_x)
+    active_devices.sort(key=sort_key_minute)
+    inactive_devices.sort(key=sort_key_minute)
     
     # Statystyki
     total_devices = Device.query.count()
@@ -235,34 +256,6 @@ def email_settings():
     return render_template('email_settings.html',
                          config=config_status,
                          recipients=recipients)
-
-
-@main_bp.route('/settings/email/test', methods=['POST'])
-@login_required
-def test_email():
-    """Testuj połączenie email"""
-    from core.email_manager import EmailManager
-    from config import Config
-    
-    email_manager = EmailManager(Config)
-    
-    # Test połączenia
-    if email_manager.test_connection():
-        # Wyślij testową wiadomość
-        success = email_manager.send_email(
-            subject='🧪 Test powiadomień LAN Monitor',
-            body='To jest testowa wiadomość z systemu LAN Monitor. Jeśli widzisz tę wiadomość, konfiguracja email działa poprawnie!',
-            html=False
-        )
-        
-        if success:
-            flash('Test email zakończony sukcesem! Sprawdź swoją skrzynkę pocztową.', 'success')
-        else:
-            flash('Połączenie działa, ale nie udało się wysłać wiadomości.', 'warning')
-    else:
-        flash('Test połączenia email nieudany. Sprawdź konfigurację SMTP.', 'error')
-    
-    return redirect(url_for('main.email_settings'))
 
 
 @main_bp.route('/device/<int:device_id>')
@@ -878,7 +871,8 @@ def send_report_email(device_id, report_id):
     """Wyślij raport emailem"""
     from datetime import datetime, timedelta
     from app.models import DeviceReport, EmailRecipient
-    from core.email_manager import email_manager
+    from core.email_manager import EmailManager
+    from config import Config
     from flask import request
     
     try:
@@ -928,6 +922,7 @@ def send_report_email(device_id, report_id):
         
         filename = f'raport_{device.ip_address}_{period_days}dni.pdf'
         
+        email_manager = EmailManager(Config)
         success = email_manager.send_email(
             to_email=email,
             subject=subject,
@@ -939,15 +934,18 @@ def send_report_email(device_id, report_id):
         
         if success:
             logger.info(f"✅ Wysłano raport na email: {email}")
-            return jsonify({'success': True, 'message': f'Raport został wysłany na adres {email}'})
+            flash(f'✅ Raport został wysłany na adres {email}', 'success')
         else:
-            return jsonify({'success': False, 'error': 'Nie udało się wysłać emaila'}), 500
+            flash('❌ Nie udało się wysłać raportu na email.', 'error')
+        return redirect(request.referrer or url_for('main.device_detail_all', device_id=device_id))
             
     except ImportError:
-        return jsonify({'success': False, 'error': 'Biblioteka WeasyPrint nie jest zainstalowana'}), 500
+        flash('❌ Biblioteka WeasyPrint nie jest zainstalowana.', 'error')
+        return redirect(request.referrer or url_for('main.device_detail_all', device_id=device_id))
     except Exception as e:
         logger.error(f"❌ Błąd wysyłania raportu emailem: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'❌ Błąd wysyłania raportu: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('main.device_detail_all', device_id=device_id))
 
 
 @main_bp.route('/device/<int:device_id>/report/<int:report_id>/delete', methods=['POST'])

@@ -22,8 +22,8 @@ class TrafficManager:
         self.update_thread = None
         
         # Parametry wykrywania podejrzanego ruchu
-        self.traffic_threshold_mbps = 80  # Próg ruchu w Mbps (80 Mbps = 10 MB/s)
-        self.traffic_min_packets = 50000  # Minimalna liczba pakietów/min do uznania za podejrzany ruch
+        self.traffic_threshold_mbps = 30  # Próg ruchu w Mbps (80 Mbps = 10 MB/s)
+        self.traffic_min_packets = 30000  # Minimalna liczba pakietów/min do uznania za podejrzany ruch
         self.suspicious_alerts_sent = {}  # Tracking wysłanych alertów (aby nie spamować)
         
         if app:
@@ -219,11 +219,10 @@ class TrafficManager:
                     
                     # Utwórz alert w bazie
                     alert = Alert(
-                        device_id=device.id,
-                        alert_type='suspicious_traffic',
-                        severity='warning',
-                        message=f"Wykryto podejrzanie wysoki ruch sieciowy na urządzeniu {device.hostname or device.ip_address}. "
-                               f"Prędkość: {mbps:.1f} Mbps, "
+                           device_id=device.id,
+                           alert_type='suspicious_traffic',
+                           severity='warning',
+                           message=f"Wykryto podejrzanie wysoki ruch sieciowy na urządzeniu {device.hostname or device.ip_address}. "
                                f"Liczba pakietów: {packets_per_minute:.0f}/min."
                     )
                     db.session.add(alert)
@@ -265,12 +264,14 @@ class TrafficManager:
                                                            device_info=device_info,
                                                            timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                                 
-                                email_manager.send_email(
+                                if email_manager.send_email(
                                     subject='⚠️ ALERT: Wykryto podejrzany ruch sieciowy',
                                     body=html_body,
                                     to_email=recipient.email,
                                     html=True
-                                )
+                                ):
+                                    alert.is_sent = True
+                                    db.session.commit()
                                 logger.info(f"📧 Alert wysłany do {recipient.email}")
                             except Exception as e:
                                 logger.error(f"❌ Błąd wysyłania alertu do {recipient.email}: {e}")

@@ -1,18 +1,9 @@
-"""
-Funkcje pomocnicze wykorzystywane w całej aplikacji
-"""
+
+#Funkcje pomocnicze wykorzystywane w całej aplikacji
 
 
+"""Formatowanie bajtów do odpowiednich jednostek"""
 def format_bytes(bytes_value):
-    """
-    Formatuje bajty do odpowiedniej jednostki (1000-based, SI)
-    
-    Args:
-        bytes_value: Wartość w bajtach
-        
-    Returns:
-        str: Sformatowana wartość z jednostką (B, KB, MB, GB)
-    """
     if bytes_value < 1000:
         return f"{bytes_value:.2f} B"
     elif bytes_value < 1000 * 1000:

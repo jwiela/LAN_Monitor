@@ -7,7 +7,17 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="dashboard">
-    {% include 'navbar.html' %}
+        {% include 'navbar.html' %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flashes">
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
     
     <div class="container">
         <!-- Breadcrumb -->
@@ -284,17 +294,11 @@
                     
                     console.log('Response data:', data);
                     
-                    if (data.success) {
-                        if (data.email_sent === true) {
-                            alert('✅ Raport został pomyślnie wygenerowany i wysłany na email:\n' + emailRecipient);
-                        } else if (data.email_sent === false && data.email_error) {
-                            alert('⚠️ Raport został wygenerowany, ale wystąpił błąd podczas wysyłania emaila:\n' + data.email_error);
-                        } else {
-                            alert('✅ Raport został wygenerowany');
-                        }
-                        setTimeout(() => location.reload(), 1500);
+                    // Po wysłaniu raportu przekieruj na stronę, gdzie pojawi się powiadomienie flash
+                    if (data && data.redirect_url) {
+                        window.location.href = data.redirect_url;
                     } else {
-                        alert('❌ Błąd: ' + (data.error || 'Nie udało się wysłać raportu'));
+                        window.location.reload();
                     }
                 })
                 .catch(error => {

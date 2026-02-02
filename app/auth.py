@@ -10,9 +10,9 @@ from app.models import User
 auth_bp = Blueprint('auth', __name__)
 
 
+"""Strona logowania"""
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    """Strona logowania"""
     # Jeśli użytkownik jest już zalogowany, przekieruj do dashboardu
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
@@ -49,20 +49,18 @@ def login():
     
     return render_template('login.html')
 
-
+"""Wylogowanie użytkownika"""
 @auth_bp.route('/logout')
 @login_required
 def logout():
-    """Wylogowanie użytkownika"""
     logout_user()
     flash('Zostałeś wylogowany.', 'info')
     return redirect(url_for('auth.login'))
 
-
+"""Zmiana hasła użytkownika"""
 @auth_bp.route('/change-password', methods=['GET', 'POST'])
 @login_required
 def change_password():
-    """Zmiana hasła użytkownika"""
     if request.method == 'POST':
         current_password = request.form.get('current_password')
         new_password = request.form.get('new_password')

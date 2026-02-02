@@ -1,3 +1,33 @@
+/* Flash messages (powiadomienia) */
+.flashes {
+    margin: 20px 0 10px 0;
+    padding: 0;
+}
+.flash {
+    padding: 12px 15px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    background: #f5f5f5;
+    border-left: 4px solid #667eea;
+    color: #222;
+}
+.flash-success {
+    background: #e6ffed;
+    border-left: 4px solid #38a169;
+    color: #276749;
+}
+.flash-error {
+    background: #ffeaea;
+    border-left: 4px solid #e53e3e;
+    color: #c53030;
+}
+.flash-warning {
+    background: #fffbe6;
+    border-left: 4px solid #ecc94b;
+    color: #b7791f;
+}
 /* Reset i podstawowe style */
 * {
     margin: 0;
@@ -151,8 +181,9 @@ body {
     text-decoration: none;
 }
 
+
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #667eea;
     color: white;
 }
 

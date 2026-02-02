@@ -183,14 +183,11 @@
             .then(response => response.json())
             .then(data => {
                 const alertsList = document.getElementById('alerts-list');
-                
                 // Pobierz listę ukrytych alertów z localStorage
                 const hiddenAlerts = JSON.parse(localStorage.getItem('hiddenAlerts') || '[]');
-                
                 if (data.alerts && data.alerts.length > 0) {
-                    // Filtruj alerty - nie pokazuj ukrytych
+                    // NIE filtruj przeczytanych alertów, pokazuj wszystkie ostatnie 10 (poza ukrytymi)
                     const visibleAlerts = data.alerts.filter(alert => !hiddenAlerts.includes(alert.id));
-                    
                     if (visibleAlerts.length > 0) {
                         alertsList.innerHTML = visibleAlerts.map(alert => `
                             <div class="alert-item-wrapper ${alert.is_read ? '' : 'unread'}">
@@ -210,10 +207,10 @@
                             </div>
                         `).join('');
                     } else {
-                        alertsList.innerHTML = '<div class="alerts-empty">Brak nowych alertów</div>';
+                        alertsList.innerHTML = '<div class="alerts-empty">Brak alertów do wyświetlenia</div>';
                     }
                 } else {
-                    alertsList.innerHTML = '<div class="alerts-empty">Brak nowych alertów</div>';
+                    alertsList.innerHTML = '<div class="alerts-empty">Brak alertów do wyświetlenia</div>';
                 }
             })
             .catch(error => {

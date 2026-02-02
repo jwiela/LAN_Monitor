@@ -107,34 +107,6 @@ class EmailManager:
             logger.error(f"❌ Nieoczekiwany błąd podczas wysyłania emaila: {e}")
             return False
     
-    def send_alert_email(self, alert_type: str, message: str, device_info: Optional[dict] = None) -> bool:
-        """
-        Wyślij email o alercie
-        
-        Args:
-            alert_type: Typ alertu (new_device, device_offline, unusual_traffic, itp.)
-            message: Treść alertu
-            device_info: Dodatkowe informacje o urządzeniu (opcjonalne)
-            
-        Returns:
-            bool: True jeśli wysłano pomyślnie
-        """
-        # Mapowanie typów alertów na tematy
-        subject_map = {
-            'new_device': '🆕 Nowe urządzenie w sieci',
-            'suspicious_traffic': '⚠️ Podejrzany ruch sieciowy',
-            'arp_spoofing': '🛡️ ALERT: ARP Spoofing',
-            'mac_duplicate': '🔒 ALERT: Duplikat MAC',
-        }
-        
-        subject = subject_map.get(alert_type, '🔔 Alert z LAN Monitor')
-        
-        # Przygotuj treść HTML z template
-        html_body = self._create_alert_html(alert_type, message, device_info)
-        
-        # Wyślij email z treścią HTML
-        return self.send_email(subject, html_body, html=True)
-    
     def _create_alert_html(self, alert_type: str, message: str, device_info: Optional[dict]) -> str:
         """
         Stwórz HTML dla alertu używając template
@@ -167,30 +139,6 @@ class EmailManager:
                              timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         return html
-    
-    def test_connection(self) -> bool:
-        """
-        Przetestuj połączenie SMTP
-        
-        Returns:
-            bool: True jeśli połączenie działa
-        """
-        if not self.enabled:
-            logger.error("❌ Email manager jest wyłączony")
-            return False
-        
-        try:
-            with smtplib.SMTP(self.config.MAIL_SERVER, self.config.MAIL_PORT, timeout=10) as server:
-                if self.config.MAIL_USE_TLS:
-                    server.starttls()
-                server.login(self.config.MAIL_USERNAME, self.config.MAIL_PASSWORD)
-            
-            logger.info("✅ Połączenie SMTP działa poprawnie")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Test połączenia SMTP nieudany: {e}")
-            return False
     
     def send_alert_to_recipients(self, alert_type: str, message: str, device_info: Optional[dict] = None) -> dict:
         """

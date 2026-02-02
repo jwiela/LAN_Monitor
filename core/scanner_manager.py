@@ -213,7 +213,7 @@ class ScannerManager:
             from app import db
             
             # Utwórz alert
-            message = f"Wykryto nowe urządzenie w sieci: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
+            message = f"Wykryto nowe urządzenie w sieci: Adres MAC: {device.mac_address or 'nieznany'}, Adres IP: {device.ip_address}"
             alert = Alert(
                 device_id=device.id,
                 alert_type='new_device',
@@ -247,7 +247,9 @@ class ScannerManager:
                         
                         # Wyślij email
                         subject = '🆕 Nowe urządzenie w sieci'
-                        email_manager.send_email(subject, html_body, to_email=recipient.email, html=True)
+                        if email_manager.send_email(subject, html_body, to_email=recipient.email, html=True):
+                            alert.is_sent = True
+                            db.session.commit()
                         
                         logger.info(f"📧 Wysłano powiadomienie o nowym urządzeniu do {recipient.email}")
                     except Exception as e:
@@ -257,46 +259,6 @@ class ScannerManager:
                     
         except Exception as e:
             logger.error(f"❌ Błąd wysyłania powiadomienia o nowym urządzeniu: {e}", exc_info=True)
-    
-    def _send_online_notification(self, device, email_manager):
-        """Wysyła powiadomienie o urządzeniu które wróciło online"""
-        try:
-            from app.models import Alert
-            from app import db
-            
-            # Utwórz alert (bez wysyłania emaili)
-            message = f"Urządzenie wróciło online: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
-            alert = Alert(
-                device_id=device.id,
-                alert_type='device_online',
-                message=message
-            )
-            db.session.add(alert)
-            db.session.commit()
-            logger.info(f"✅ Alert online utworzony dla {device.ip_address} (bez powiadomienia email)")
-                    
-        except Exception as e:
-            logger.error(f"❌ Błąd tworzenia alertu online: {e}", exc_info=True)
-    
-    def _send_offline_notification(self, device):
-        """Wysyła powiadomienie o urządzeniu które przeszło offline"""
-        try:
-            from app.models import Alert
-            from app import db
-            
-            # Utwórz alert (bez wysyłania emaili)
-            message = f"Urządzenie offline: {device.hostname or device.vendor or device.ip_address} ({device.ip_address})"
-            alert = Alert(
-                device_id=device.id,
-                alert_type='device_offline',
-                message=message
-            )
-            db.session.add(alert)
-            db.session.commit()
-            logger.info(f"📴 Alert offline utworzony dla {device.ip_address} (bez powiadomienia email)")
-                    
-        except Exception as e:
-            logger.error(f"❌ Błąd tworzenia alertu offline: {e}", exc_info=True)
     
     def start(self):
         """Uruchamia automatyczne skanowanie sieci"""
@@ -378,17 +340,14 @@ class ScannerManager:
             
             # Sprawdź cooldown - nie wysyłaj alertu jeśli niedawno wysłano
             alert_key = f"mac_change_{device.ip_address}"
-            if alert_key in self.mitm_alerts_sent:
+            """if alert_key in self.mitm_alerts_sent:
                 last_sent = self.mitm_alerts_sent[alert_key]
                 if datetime.now() - last_sent < timedelta(hours=1):  # 1 godzina cooldown
                     logger.info(f"⏱️ Pomijam alert zmiany MAC dla {device.ip_address} (cooldown)")
                     return
-            
+            """
             # Utwórz alert
-            message = (f"Wykryto zmianę adresu MAC dla urządzenia {device.ip_address}.\n\n"
-                      f"Szczegóły:\n"
-                      f"• Stary MAC: {old_mac}\n"
-                      f"• Nowy MAC: {new_mac}")
+            message = f"Wykryto zmianę adresu MAC dla urządzenia {device.ip_address}. Poprzedni adres MAC: {old_mac}, nowy adres MAC: {new_mac}"
             
             alert = Alert(
                 device_id=device.id,
@@ -426,12 +385,14 @@ class ScannerManager:
                                                    timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                         
                         # Wyślij email
-                        email_manager.send_email(
+                        if email_manager.send_email(
                             to_email=recipient.email,
                             subject=f"⚠️ ALERT: Zmiana adresu MAC wykryta na {device.ip_address}",
                             body=html_body,
                             html=True
-                        )
+                        ):
+                            alert.is_sent = True
+                            db.session.commit()
                         logger.info(f"✅ Email zmiany MAC wysłany do {recipient.email}")
                     except Exception as e:
                         logger.error(f"❌ Błąd wysyłania email zmiany MAC do {recipient.email}: {e}")
